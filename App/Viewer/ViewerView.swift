@@ -104,7 +104,7 @@ struct ViewerView: View {
         HStack {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left").font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.white).frame(width: 46, height: 46)
+                    .foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             Spacer()
@@ -120,7 +120,7 @@ struct ViewerView: View {
             if a.isVideo {
                 Button { video.muted.toggle() } label: {
                     Image(systemName: video.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white).frame(width: 46, height: 46)
+                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 .accessibilityLabel(video.muted ? String(localized: "Ton an") : String(localized: "Ton aus"))
@@ -130,7 +130,7 @@ struct ViewerView: View {
                 AssetMenu(assets: [a], style: .viewer, present: { sheet = $0 }) { removeLocal(a) }
             } label: {
                 Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white).frame(width: 46, height: 46)
+                    .foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
         }
@@ -607,6 +607,7 @@ private struct InfoSheet: View {
     let asset: Asset
     /// nil = nichts zum Nachschlagen im Foto
     var lookUp: (() -> Void)? = nil
+    @Environment(AppModel.self) private var app
     @State private var dto: AssetDTO?
     @State private var albums: [AlbumDTO] = []
     @State private var sharedAlbums: Set<String> = []
@@ -704,6 +705,17 @@ private struct InfoSheet: View {
                             } else {
                                 NavigationLink(value: CollectionRoute.person(PersonRef(id: p.id, name: p.name))) { face(p, p.name) }
                                     .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button("Das ist nicht \(p.name)", systemImage: "person.crop.circle.badge.xmark") {
+                                            Task {
+                                                do {
+                                                    try await ImmichClient.shared.notThisPerson(asset: asset.id, person: p.id)
+                                                    app.toast(String(localized: "Aus „\(p.name)“ entfernt"))
+                                                } catch { app.toast(String(localized: "Hat nicht geklappt")) }
+                                                dto = try? await ImmichClient.shared.asset(asset.id)
+                                            }
+                                        }
+                                    }
                             }
                         }
                     }

@@ -72,8 +72,8 @@ enum Category: String, CaseIterable, Hashable, Identifiable {
         case .receipts: ["beleg", "quittung", "kassenbon", "kassenzettel", "rechnung"]
         case .documents: ["dokument", "brief", "scan"]; case .qrCodes: ["qr", "qr-code", "qrcode"]
         case .pets: ["haustier", "haustiere", "hund", "hunde", "katze", "katzen"]
-        case .favorites: ["favorit", "lieblingsfotos"]; case .livePhotos: ["live photo", "livephoto"]
-        case .animated: ["gif", "gifs"]; case .portrait: ["portrait", "porträtmodus"]
+        case .favorites: ["favorit", "lieblingsfotos"]; case .livePhotos: ["live photo", "live photos", "livephoto", "livephotos"]
+        case .animated: ["gif", "gifs"]; case .portrait: ["portrait", "porträts", "porträtmodus"]
         default: []
         }
     }
@@ -104,6 +104,12 @@ enum CategoryLoader {
         switch c {
         case .videos: return await s(["type": ["eq": "VIDEO"]])
         case .favorites: return await s(["isFavorite": ["eq": true]])
+        case .livePhotos:
+            // Server kennt Live Photos über isMotion (auch ohne Tag), dazu was die Zeitleiste schon weiß
+            var out = await s(["isMotion": ["eq": true]])
+            let have = Set(out.map(\.id))
+            out += timeline.allLoaded.filter { $0.isLivePhoto && !have.contains($0.id) }
+            return out
         case .hidden: return await s(["visibility": ["eq": "archive"]])
         case .trash: return await s(["trashedAt": ["ne": NSNull()]])
         case .recentlySaved:

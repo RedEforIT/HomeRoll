@@ -38,7 +38,7 @@ struct VideoTrimView: View {
                 Spacer()
                 Button { Task { await save() } } label: {
                     Image(systemName: "checkmark").font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(changed ? Color.black : .white.opacity(0.4)).frame(width: 46, height: 46)
+                        .foregroundStyle(changed ? Color.black : .white.opacity(0.4)).frame(width: 46, height: 46).contentShape(.rect)
                         .background { if changed { Circle().fill(Color.yellow) } }
                 }
                 .glassEffect(.regular.interactive(), in: .circle)

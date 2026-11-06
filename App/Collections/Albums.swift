@@ -261,7 +261,6 @@ struct AlbumScreen: View {
     @ViewBuilder private func photoMenu(_ a: Asset) -> some View {
         AssetMenu(assets: [a], style: .context, present: { app.sheet = $0 }) { assets?.removeAll { $0.id == a.id } }
         Section {
-            Button(String(localized: "In „Alle Fotos“ anzeigen"), systemImage: "photo.on.rectangle") { app.reveal(a.id) }
             Button(String(localized: "Als Schlüsselfoto festlegen"), systemImage: "photo") {
                 Task { await AlbumActions.setCover(ref.id, a.id) }
                 app.toast(String(localized: "Schlüsselfoto festgelegt"))

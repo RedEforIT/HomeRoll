@@ -485,6 +485,8 @@ struct SearchPlan {
             switch cat {
             case .videos: p.filter["type"] = ["eq": "VIDEO"]
             case .favorites: p.filter["isFavorite"] = ["eq": true]
+            // Live Photos haben oft kein Tag, nur das verknüpfte Video → Server-Filter isMotion
+            case .livePhotos: p.filter["isMotion"] = ["eq": true]
             default:
                 if let tag = cat.tag, let id = await CategoryLoader.tagID(tag) { p.filter["tagIds"] = ["any": [id]] }
                 else if cat.tag != nil { p.filter["tagIds"] = ["any": ["00000000-0000-4000-8000-000000000000"]] } // noch leer
@@ -541,6 +543,7 @@ struct SearchPlan {
                 switch c {
                 case .videos: filter["type"] = ["eq": "VIDEO"]
                 case .favorites: filter["isFavorite"] = ["eq": true]
+                case .livePhotos: filter["isMotion"] = ["eq": true]
                 case .hidden: filter["visibility"] = ["eq": "archive"]
                 default:
                     if let tag = c.tag, let id = await CategoryLoader.tagID(tag) { filter["tagIds"] = ["any": [id]] }

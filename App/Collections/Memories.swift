@@ -13,6 +13,10 @@ struct Memory: Identifiable, Hashable {
     let key: Asset
     let date: Date
     var custom = false
+    /// Worum es geht – für „… weniger zeigen“ (REA: PXPhotoKitFeatureLessActionPerformer)
+    var place: String? = nil
+    var personID: String? = nil
+    var personName: String? = nil
 }
 
 /// Was der Nutzer an Rückblicken geändert hat (nur auf diesem Gerät).
@@ -24,7 +28,32 @@ struct MemoryPrefs: Codable {
     var style: [String: Int] = [:]
     var length: [String: Int] = [:]
     var custom: [Custom] = []
+    /// „weniger zeigen“ wie Fotos: Tage (yyyy-MM-dd, Wanduhr), Orte, Personen
+    var lessDays: Set<String> = []
+    var lessPlaces: Set<String> = []
+    var lessPeople: Set<String> = []
     struct Custom: Codable, Hashable { let id: String; let title: String; let ids: [String]; let created: Date }
+
+    init() {}
+    /// Fehlende Felder (ältere gespeicherte Stände) dürfen nicht alles verwerfen.
+    init(from d: Decoder) throws {
+        let c = try d.container(keyedBy: CodingKeys.self)
+        favorites = try c.decodeIfPresent(Set<String>.self, forKey: .favorites) ?? []
+        deleted = try c.decodeIfPresent(Set<String>.self, forKey: .deleted) ?? []
+        titles = try c.decodeIfPresent([String: String].self, forKey: .titles) ?? [:]
+        mood = try c.decodeIfPresent([String: Int].self, forKey: .mood) ?? [:]
+        style = try c.decodeIfPresent([String: Int].self, forKey: .style) ?? [:]
+        length = try c.decodeIfPresent([String: Int].self, forKey: .length) ?? [:]
+        custom = try c.decodeIfPresent([Custom].self, forKey: .custom) ?? []
+        lessDays = try c.decodeIfPresent(Set<String>.self, forKey: .lessDays) ?? []
+        lessPlaces = try c.decodeIfPresent(Set<String>.self, forKey: .lessPlaces) ?? []
+        lessPeople = try c.decodeIfPresent(Set<String>.self, forKey: .lessPeople) ?? []
+    }
+
+    nonisolated static func dayKey(_ d: Date) -> String {
+        let c = Calendar.wall.dateComponents([.year, .month, .day], from: d)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
 
     static var shared: MemoryPrefs {
         get { (UserDefaults.standard.data(forKey: "memoryPrefs")).flatMap { try? JSONDecoder().decode(Self.self, from: $0) } ?? .init() }
@@ -216,7 +245,7 @@ final class MemoryCenter {
     /// Test: FOTOS_DUMP_MEMORIES=1 schreibt die Rückblicke (Titel, Titelbild, Fotos) nach tmp/rueckblicke.json
     private func dump(_ step: String) {
         guard ProcessInfo.processInfo.environment["FOTOS_DUMP_MEMORIES"] == "1" else { return }
-        let list = items.map { ["title": $0.title, "key": $0.key.id, "assets": $0.assets.map(\.id).joined(separator: ",")] }
+        let list = items.map { ["id": $0.id, "title": $0.title, "key": $0.key.id, "place": $0.place ?? "", "assets": $0.assets.map(\.id).joined(separator: ",")] }
         let obj: [String: Any] = ["step": step, "account": builtAccount, "generation": generation, "items": list]
         if let d = try? JSONSerialization.data(withJSONObject: obj) {
             try? d.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("rueckblicke.json"), options: .atomic)
@@ -246,7 +275,7 @@ final class MemoryCenter {
         let iso = DateFormatter(); iso.dateFormat = "yyyy-MM-dd"; iso.timeZone = DateParsing.utc
         for p in people where !p.name.isEmpty {
             guard let bs = p.birthDate, let b = iso.date(from: String(bs.prefix(10))),
-                  !prefs.deleted.contains("birthday-\(p.id)") else { continue }
+                  !prefs.deleted.contains("birthday-\(p.id)"), !prefs.lessPeople.contains(p.id) else { continue }
             let bm = cal.component(.month, from: b), bd = cal.component(.day, from: b)
             let list = ((try? await ImmichClient.shared.search(filter: ["personIds": ["any": [p.id]]], size: 1000, order: "asc")) ?? [])
                 .map(\.asset).filter { a in
@@ -259,7 +288,7 @@ final class MemoryCenter {
             guard picked.count >= 4, let key = MemoryEngine.keyPhoto(picked) else { continue }
             let id = "birthday-\(p.id)"
             let m = Memory(id: id, title: prefs.titles[id] ?? String(localized: "Geburtstag von \(p.name)"), subtitle: MemoryEngine.range(picked),
-                           assets: picked, key: key, date: picked.last!.date)
+                           assets: picked, key: key, date: picked.last!.date, personID: p.id, personName: p.name)
             var next = cal.dateComponents([.year], from: now); next.month = bm; next.day = bd
             let soon = cal.date(from: next).map { abs($0.timeIntervalSince(now)) / 86_400 <= 3 } ?? false
             guard gen == generation else { return }
@@ -287,7 +316,11 @@ final class MemoryCenter {
     func update(_ change: (inout MemoryPrefs) -> Void) {
         var p = MemoryPrefs.shared; change(&p); MemoryPrefs.shared = p
         let prefs = p
-        items = items.filter { !prefs.deleted.contains($0.id) }.map { m in
+        items = items.filter { m in
+            !prefs.deleted.contains(m.id) && !(m.place.map(prefs.lessPlaces.contains) ?? false)
+                && !(m.personID.map(prefs.lessPeople.contains) ?? false)
+                && !(m.id.hasPrefix("today-") && m.assets.contains { prefs.lessDays.contains(MemoryPrefs.dayKey($0.date)) })
+        }.map { m in
             var m = m; if let t = prefs.titles[m.id] { m.title = t }; return m
         }
     }
@@ -307,20 +340,25 @@ final class MemoryCenter {
 /// Jahreszeiten und Orte im Laufe der Jahre.
 enum MemoryEngine {
     nonisolated static func build(all: [Asset], server: [(Int?, [Asset])], prefs: MemoryPrefs) -> [Memory] {
-        let photos = all.filter(\.isImage).sorted { $0.date < $1.date }
+        // „Diesen Tag weniger zeigen“: Fotos dieser Tage kommen in keinen Rückblick mehr
+        let photos = all.filter { $0.isImage && (prefs.lessDays.isEmpty || !prefs.lessDays.contains(MemoryPrefs.dayKey($0.date))) }
+            .sorted { $0.date < $1.date }
         guard !photos.isEmpty else { return [] }
         let cal = Calendar.wall
         let now = Date(), thisYear = cal.component(.year, from: now)
         var out: [Memory] = []
-        func add(_ id: String, _ title: String, _ list: [Asset], min: Int, max: Int = 50, date: Date? = nil) {
+        func add(_ id: String, _ title: String, _ list: [Asset], min: Int, max: Int = 50, date: Date? = nil, place: String? = nil) {
             guard list.count >= min, !prefs.deleted.contains(id) else { return }
+            if let place, prefs.lessPlaces.contains(place) { return }
+            let list = prefs.lessDays.isEmpty ? list : list.filter { !prefs.lessDays.contains(MemoryPrefs.dayKey($0.date)) }
+            guard list.count >= min else { return }
             let picked = curate(list, max: max)
             // Rückblicke ohne eine einzige fertige Vorschau (Server rechnet noch) erst später zeigen – sonst schwarze Karte
             // nach dem Aussortieren (Serien, Bildschirmfotos) müssen genug Fotos bleiben, sonst ist es kein Rückblick
             guard picked.count >= Swift.max(3, min / 2),
                   picked.contains(where: { ImageCache.shared.hash($0.id) != nil }), let key = keyPhoto(picked) else { return }
             out.append(Memory(id: id, title: prefs.titles[id] ?? title, subtitle: range(picked), assets: picked, key: key,
-                              date: date ?? picked.last!.date))
+                              date: date ?? picked.last!.date, place: place))
         }
 
         // 1. Heute vor X Jahren (Server-Vorschlag, sonst selbst: ±3 Tage um heute in früheren Jahren)
@@ -344,7 +382,7 @@ enum MemoryEngine {
         // 2. Reisen (wie „Reisen“ in Sammlungen), größte zuerst
         for t in CollectionsView.trips(from: all).sorted(by: { $0.assets.count > $1.assets.count }).prefix(8) {
             let y = cal.component(.year, from: t.start)
-            add("trip-\(Int(t.start.timeIntervalSince1970))", "\(t.title) \(y)", t.assets.filter(\.isImage), min: 6, date: t.start)
+            add("trip-\(Int(t.start.timeIntervalSince1970))", "\(t.title) \(y)", t.assets.filter(\.isImage), min: 6, date: t.start, place: t.title)
         }
 
         // 3. Das Beste aus <Jahr>
@@ -367,7 +405,7 @@ enum MemoryEngine {
         let byCity = Dictionary(grouping: photos.filter { $0.city != nil }) { $0.city! }
         for (city, list) in byCity.sorted(by: { $0.value.count > $1.value.count }).prefix(6) {
             let years = Set(list.map { cal.component(.year, from: $0.date) })
-            if years.count >= 3 { add("city-\(city)", String(localized: "\(city) im Laufe der Jahre"), list, min: 15, max: 45) }
+            if years.count >= 3 { add("city-\(city)", "\(city) im Laufe der Jahre", list, min: 15, max: 45, place: city) }
         }
 
         // 6. Selbst erstellte (oben, neueste zuerst)
@@ -670,12 +708,37 @@ struct MemoryMenuItems: View {
     let memory: Memory
     var onDelete: () -> Void = {}
     @Environment(AppModel.self) private var app
+
+    private func less(_ toast: String, _ change: (inout MemoryPrefs) -> Void) {
+        MemoryCenter.shared.update(change)
+        app.toast(toast)
+        onDelete()
+    }
     var body: some View {
         let fav = MemoryPrefs.shared.favorites.contains(memory.id)
         Button(fav ? String(localized: "Aus Favoriten entfernen") : String(localized: "Zu Favoriten"), systemImage: fav ? "heart.slash" : "heart") {
             MemoryCenter.shared.update { p in if fav { p.favorites.remove(memory.id) } else { p.favorites.insert(memory.id) } }
         }
         Button(String(localized: "Fotos teilen"), systemImage: "square.and.arrow.up") { Task { await ShareService.share(memory.assets.map(\.id), app: app) } }
+        // wie Fotos: „… weniger zeigen“ – danach baut die App die Rückblicke ohne das Thema
+        Menu {
+            if let name = memory.personName, let pid = memory.personID {
+                Button("\(name) weniger zeigen", systemImage: "person.crop.circle.badge.minus") {
+                    less(String(localized: "Weniger von \(name)")) { $0.lessPeople.insert(pid) }
+                }
+            }
+            if let place = memory.place {
+                Button("\(place) weniger zeigen", systemImage: "mappin.slash") {
+                    less(String(localized: "Weniger aus \(place)")) { $0.lessPlaces.insert(place) }
+                }
+            }
+            if memory.id.hasPrefix("today-") || memory.id.hasPrefix("trip-") || memory.custom {
+                Button("Diese Tage weniger zeigen", systemImage: "calendar.badge.minus") {
+                    let days = Set(memory.assets.map { MemoryPrefs.dayKey($0.date) })
+                    less(String(localized: "Diese Tage erscheinen seltener")) { $0.lessDays.formUnion(days) }
+                }
+            }
+        } label: { Label("Weniger zeigen", systemImage: "hand.thumbsdown") }
         Divider()
         Button(String(localized: "Rückblick löschen"), systemImage: "trash", role: .destructive) {
             MemoryCenter.shared.update { $0.deleted.insert(memory.id) }

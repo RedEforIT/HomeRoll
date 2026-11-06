@@ -153,7 +153,7 @@ struct EditorView: View {
                 }
             } label: {
                 Image(systemName: "checkmark").font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(session.changed ? Color.black : .white.opacity(0.4)).frame(width: 46, height: 46)
+                    .foregroundStyle(session.changed ? Color.black : .white.opacity(0.4)).frame(width: 46, height: 46).contentShape(.rect)
                     .background { if session.changed { Circle().fill(Color.yellow) } }
             }
             .glassEffect(.regular.interactive(), in: .circle)
@@ -176,6 +176,18 @@ struct EditorView: View {
         if session.state.markup != nil {
             Button(String(localized: "Markierungen entfernen"), systemImage: "pencil.slash", role: .destructive) {
                 session.state.markup = nil; session.state.markupCanvas = nil
+            }
+        }
+        Divider()
+        Button("Bearbeitungen kopieren", systemImage: "doc.on.doc") {
+            app.toast(EditClipboard.copy(session.state) ? String(localized: "Bearbeitungen kopiert") : String(localized: "Nur Licht, Farbe, Filter und Stil lassen sich kopieren"))
+        }
+        .disabled(!(session.state.hasColor || session.state.auto))
+        if let clip = EditClipboard.current {
+            Button("Bearbeitungen einsetzen", systemImage: "doc.on.clipboard") {
+                withAnimation {
+                    EditClipboard.apply(clip, to: &session.state) { session.base.map { session.renderer.autoValues(for: $0) } ?? [:] }
+                }
             }
         }
         Divider()

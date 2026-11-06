@@ -136,6 +136,16 @@
         }
       }
     },
+    "%@ weniger zeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feature %@ Less"
+          }
+        }
+      }
+    },
     "%@ werden geladen …": {
       "localizations": {
         "en": {
@@ -744,6 +754,16 @@
         }
       }
     },
+    "Album in Fotos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Album in Photos"
+          }
+        }
+      }
+    },
     "Album löschen": {
       "localizations": {
         "en": {
@@ -1084,12 +1104,32 @@
         }
       }
     },
+    "Aus Empfohlenen entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Featured"
+          }
+        }
+      }
+    },
     "Aus Favoriten entfernen": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Remove from Favorites"
+          }
+        }
+      }
+    },
+    "Aus „%@“ entfernt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed from “%@”"
           }
         }
       }
@@ -1220,6 +1260,86 @@
           "stringUnit": {
             "state": "translated",
             "value": "Edited"
+          }
+        }
+      }
+    },
+    "Bearbeitungen auf %lld Fotos eingesetzt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edits pasted on %lld photos"
+          }
+        }
+      }
+    },
+    "Bearbeitungen eingesetzt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edits pasted"
+          }
+        }
+      }
+    },
+    "Bearbeitungen einsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Edits"
+          }
+        }
+      }
+    },
+    "Bearbeitungen einsetzen … %lld von %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasting edits… %lld of %lld"
+          }
+        }
+      }
+    },
+    "Bearbeitungen konnten nicht eingesetzt werden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edits couldn't be pasted"
+          }
+        }
+      }
+    },
+    "Bearbeitungen kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Edits"
+          }
+        }
+      }
+    },
+    "Bearbeitungen kopiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edits copied"
+          }
+        }
+      }
+    },
+    "Bearbeitungen werden eingesetzt …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasting edits…"
           }
         }
       }
@@ -1466,6 +1586,16 @@
         }
       }
     },
+    "Das ist nicht %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Is Not %@"
+          }
+        }
+      }
+    },
     "Datum": {
       "localizations": {
         "en": {
@@ -1642,12 +1772,42 @@
         }
       }
     },
+    "Diese Tage erscheinen seltener": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These days will be featured less"
+          }
+        }
+      }
+    },
+    "Diese Tage weniger zeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feature These Days Less"
+          }
+        }
+      }
+    },
     "Dieses Album ist leer.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "This album is empty."
+          }
+        }
+      }
+    },
+    "Dieses Foto hat keine Licht- oder Farbbearbeitungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo has no light or color edits"
           }
         }
       }
@@ -1728,6 +1888,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dramatic Warm"
+          }
+        }
+      }
+    },
+    "Drucken": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print"
           }
         }
       }
@@ -2028,6 +2198,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Photo"
+          }
+        }
+      }
+    },
+    "Foto konnte nicht geladen werden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load the photo"
           }
         }
       }
@@ -2423,6 +2603,16 @@
         }
       }
     },
+    "Hat nicht geklappt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That didn't work"
+          }
+        }
+      }
+    },
     "Haustiere": {
       "localizations": {
         "en": {
@@ -2571,6 +2761,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "In Album"
+          }
+        }
+      }
+    },
+    "In Mediathek zeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Library"
           }
         }
       }
@@ -3637,6 +3837,16 @@
         }
       }
     },
+    "Nur Licht, Farbe, Filter und Stil lassen sich kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Only light, color, filter and style can be copied"
+          }
+        }
+      }
+    },
     "Nur im WLAN": {
       "localizations": {
         "en": {
@@ -3927,6 +4137,16 @@
         }
       }
     },
+    "Person in Fotos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Person in Photos"
+          }
+        }
+      }
+    },
     "Personen": {
       "localizations": {
         "en": {
@@ -4083,6 +4303,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spatial scene not available"
+          }
+        }
+      }
+    },
+    "Rückblick": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory"
           }
         }
       }
@@ -4918,6 +5148,16 @@
         }
       }
     },
+    "Videos lassen sich nicht drucken": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos can't be printed"
+          }
+        }
+      }
+    },
     "Videos werden geprüft …": {
       "localizations": {
         "en": {
@@ -5004,6 +5244,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "The white handles on top set the slow-motion part, the yellow ones below set start and end. The original is kept."
+          }
+        }
+      }
+    },
+    "Weniger aus %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Featuring %@ less"
+          }
+        }
+      }
+    },
+    "Weniger von %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Featuring %@ less"
+          }
+        }
+      }
+    },
+    "Weniger zeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feature Less"
           }
         }
       }
@@ -5135,12 +5405,22 @@
         }
       }
     },
+    "Wird nicht mehr empfohlen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Won't be featured anymore"
+          }
+        }
+      }
+    },
     "Wird vorbereitet …": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preparing …"
+            "value": "Preparing…"
           }
         }
       }
@@ -5156,7 +5436,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Preparing … %1$lld of %2$lld"
+            "value": "Preparing… %lld of %lld"
           }
         }
       }

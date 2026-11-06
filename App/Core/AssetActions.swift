@@ -46,6 +46,29 @@ enum AssetActions {
         app.toast(assets.count == 1 ? String(localized: "Kopiert") : String(localized: "\(assets.count) Objekte kopiert"))
     }
 
+    /// „Drucken“ (REA: PXPhotoKitPrintAssetActionPerformer) – Fotos in voller Größe an AirPrint, Videos nicht.
+    static func print(_ assets: [Asset], app: AppModel) async {
+        let api = ImmichClient.shared
+        let photos = assets.filter(\.isImage)
+        guard !photos.isEmpty else { app.toast(String(localized: "Videos lassen sich nicht drucken")); return }
+        var images: [UIImage] = []
+        for (i, a) in photos.enumerated() {
+            app.busy = photos.count == 1 ? String(localized: "Wird vorbereitet …") : String(localized: "Wird vorbereitet … \(i + 1) von \(photos.count)")
+            guard let url = api.thumbnailURL(a.id, .fullsize), let d = try? await api.data(url),
+                  let img = UIImage(data: d) else { continue }
+            images.append(img)
+        }
+        app.busy = nil
+        guard !images.isEmpty else { app.toast(String(localized: "Foto konnte nicht geladen werden")); return }
+        let pc = UIPrintInteractionController.shared
+        let info = UIPrintInfo.printInfo()
+        info.outputType = .photo
+        info.jobName = images.count == 1 ? "Foto" : "\(images.count) Fotos"
+        pc.printInfo = info
+        pc.printingItems = images
+        pc.present(animated: true)
+    }
+
     /// „Duplizieren“ – echte zweite Datei. Der Server erkennt gleiche Dateien an der Prüfsumme,
     /// deshalb wird das Foto neu gespeichert (gleiche Metadaten, andere Bytes).
     static func duplicate(_ assets: [Asset], app: AppModel, timeline: TimelineStore) async {
@@ -456,11 +479,28 @@ struct AssetMenu: View {
     }
 
     @ViewBuilder private var common: some View {
+        if assets.count == 1, let a = assets.first, app.outsideLibrary, !a.isHidden {
+            Button("In Mediathek zeigen", systemImage: "photo.on.rectangle") { app.showInLibrary(a.id) }
+        }
         Button(String(localized: "Kopieren"), systemImage: "doc.on.doc") { Task { await AssetActions.copy(assets, app: app) } }
         if style != .context {
             Button(String(localized: "Link teilen (Heimnetz/VPN)"), systemImage: "link") { Task { await AssetActions.shareLink(ids, app: app) } }
         }
         Button(String(localized: "Duplizieren"), systemImage: "plus.square.on.square") { Task { await AssetActions.duplicate(assets, app: app, timeline: timeline) } }
+        if style != .context, assets.contains(where: \.isImage) {
+            Button("Drucken", systemImage: "printer") { Task { await AssetActions.print(assets, app: app) } }
+        }
+        // wie Fotos: Bearbeitungen eines Fotos auf andere übertragen
+        if assets.count == 1, let a = assets.first, a.isImage, style != .selection {
+            Button("Bearbeitungen kopieren", systemImage: "slider.horizontal.below.square.and.square.filled") {
+                Task { await EditClipboard.copy(from: a, app: app) }
+            }
+        }
+        if EditClipboard.hasEdits, assets.contains(where: \.isImage) {
+            Button("Bearbeitungen einsetzen", systemImage: "doc.on.clipboard") {
+                Task { await EditClipboard.paste(on: assets, app: app, timeline: timeline) }
+            }
+        }
         if allHidden {
             Button(String(localized: "Einblenden"), systemImage: "eye") { AssetActions.unhide(ids, app: app, timeline: timeline); onDelete() }
         } else {
@@ -494,7 +534,11 @@ enum AssetMenuUIKit {
                 AssetActions.delete(ids, timeline: timeline); onRemove?()
             },
         ])
-        let common: [UIMenuElement] = [
+        var common: [UIMenuElement] = []
+        if app.outsideLibrary, !a.isHidden {
+            common.append(UIAction(title: "In Mediathek zeigen", image: img("photo.on.rectangle")) { _ in app.showInLibrary(a.id) })
+        }
+        common += [
             UIAction(title: String(localized: "Kopieren"), image: img("doc.on.doc")) { _ in Task { await AssetActions.copy([a], app: app) } },
             UIAction(title: String(localized: "Duplizieren"), image: img("plus.square.on.square")) { _ in
                 Task { await AssetActions.duplicate([a], app: app, timeline: timeline) }

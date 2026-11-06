@@ -67,9 +67,24 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: $app.showSearch) { SearchView() }
         // Tippen aufs Widget: homeroll://memory/<id> bzw. homeroll://asset/<id>
-        .onOpenURL { url in
+        .onOpenURL { open($0) }
+        .onReceive(NotificationCenter.default.publisher(for: .openFotosURL)) { n in if let u = n.object as? URL { open(u) } }
+        .fullScreenCover(item: $app.memory) { MemoryPlayer(memory: $0) }
+    }
+
+    private func open(_ url: URL) {
             guard url.scheme == "homeroll", let id = url.pathComponents.dropFirst().first else { return }
             app.viewer = nil; app.showSearch = false
+            if url.host == "album" || url.host == "person" {
+                let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value ?? ""
+                app.tab = .collections
+                Task {
+                    var title = name
+                    if url.host == "album", title.isEmpty { title = (try? await ImmichClient.shared.albums())?.first { $0.id == id }?.albumName ?? "" }
+                    app.pendingRoute = url.host == "album" ? .album(AlbumRef(id: id, name: title)) : .person(PersonRef(id: id, name: title))
+                }
+                return
+            }
             if url.host == "memory", let m = MemoryCenter.shared.items.first(where: { $0.id == id }) { app.memory = m }
             else if url.host == "asset" {
                 // wie Apple: Foto direkt öffnen (mit den Nachbarn aus der Mediathek zum Weiterwischen)
@@ -82,8 +97,6 @@ struct RootView: View {
                     else if let dto = try? await ImmichClient.shared.asset(id) { app.open([dto.asset], at: 0) }
                 }
             }
-        }
-        .fullScreenCover(item: $app.memory) { MemoryPlayer(memory: $0) }
     }
 }
 
@@ -218,4 +231,5 @@ struct BusyBadge: View {
 
 extension Notification.Name {
     static let scrollToNewest = Notification.Name("scrollToNewest")
+    static let openFotosURL = Notification.Name("openFotosURL")
 }

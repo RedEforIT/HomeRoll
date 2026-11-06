@@ -64,7 +64,7 @@ struct LibraryHeader: View {
                         HStack(spacing: 0) {
                             Menu { libraryMenu } label: {
                                 Image(systemName: "line.3.horizontal.decrease").font(.system(size: 18, weight: .semibold))
-                                    .foregroundStyle(.white).frame(width: 50, height: 46)
+                                    .foregroundStyle(.white).frame(width: 50, height: 46).contentShape(.rect)
                             }
                             SelectionMenuButton()
                         }
@@ -72,7 +72,7 @@ struct LibraryHeader: View {
                         .glassEffect(.regular.interactive(), in: .capsule)
                         Button { withAnimation(.snappy) { app.endSelection() } } label: {
                             Image(systemName: "xmark").font(.system(size: 18, weight: .semibold))
-                                .foregroundStyle(.white).frame(width: 46, height: 46)
+                                .foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
                         }
                         .glassEffect(.regular.interactive(), in: .circle)
                     } else {
@@ -122,7 +122,7 @@ struct LibraryHeader: View {
         } label: { Label(String(localized: "Darstellungsoptionen"), systemImage: "eye") }
         Menu {
             Picker(String(localized: "Filter"), selection: $app.filter) {
-                ForEach(LibraryFilter.allCases) { f in Label(f.title, systemImage: f.icon).tag(f) }
+                ForEach(LibraryFilter.allCases) { f in Label(L(f.title), systemImage: f.icon).tag(f) }
             }
             .pickerStyle(.inline)
         } label: { Label(String(localized: "Filter"), systemImage: "line.3.horizontal.decrease.circle") }
@@ -344,6 +344,9 @@ final class LibraryQuery {
         case .favorites: all = all.filter(\.isFavorite)
         case .photos: all = all.filter(\.isImage)
         case .videos: all = all.filter(\.isVideo)
+        // wie Fotos (REA: PhotosGridToggleLiveFilter / TogglePortraitFilter)
+        case .livePhotos: let s = await ids(.livePhotos); all = all.filter { $0.isLivePhoto || s.contains($0.id) }
+        case .portrait: let s = await ids(.portrait); all = all.filter { s.contains($0.id) }
         case .screenshots: let s = await ids(.screenshots); all = all.filter { s.contains($0.id) }
         case .edited: let s = await ids(.recentlyEdited); all = all.filter { s.contains($0.id) }
         case .shared: all = all.filter { $0.ownerId != nil && $0.ownerId != app.userID }

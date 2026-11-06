@@ -72,7 +72,7 @@ struct SelectionMenuButton: View {
             }
         } label: {
             Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white).frame(width: 46, height: 46)
+                .foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
         }
         .disabled(assets.isEmpty)
     }

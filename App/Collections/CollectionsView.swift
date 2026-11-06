@@ -28,6 +28,14 @@ final class CollectionsModel {
     var userName = ""
     var loaded = false
 
+    /// „Aus Empfohlenen entfernen“ (REA: PXPhotoKitRemoveFromFeaturedPhotosActionPerformer) – gemerkt auf dem Gerät.
+    func removeFromFeatured(_ id: String) {
+        var l = UserDefaults.standard.stringArray(forKey: "featured.removed") ?? []
+        if !l.contains(id) { l.append(id) }
+        UserDefaults.standard.set(Array(l.suffix(2000)), forKey: "featured.removed")
+        featured.removeAll { $0.id == id }
+    }
+
     func reloadAlbums() async {
         guard let a = try? await ImmichClient.shared.albums() else { return }
         albums = a
@@ -50,7 +58,8 @@ final class CollectionsModel {
         var sensitive = await SensitiveFilter.ids()
         sensitive.formUnion(SensitiveFilter.known(random.map(\.id), account: account))
         var picks: [Asset] = []
-        for a in random where a.isImage && !sensitive.contains(a.id) {
+        let removed = Set(UserDefaults.standard.stringArray(forKey: "featured.removed") ?? [])
+        for a in random where a.isImage && !sensitive.contains(a.id) && !removed.contains(a.id) {
             if await !TextHeavy.check(a) { picks.append(a) }
         }
         featured = picks
@@ -118,6 +127,13 @@ struct CollectionsView: View {
             if !model.loaded { await model.load() }
             await timeline.loadAll()
             await memories.rebuild(timeline: timeline, server: model.memories)
+            SpotlightIndex.update(albums: model.albums, people: model.people, memories: memories.items, account: app.userID)
+        }
+        // Spotlight / Deep-Link: Album oder Person direkt öffnen
+        .onChange(of: app.pendingRoute) { _, r in
+            guard let r else { return }
+            app.pendingRoute = nil
+            path = NavigationPath(); path.append(r)
         }
         .onChange(of: timeline.totalCount) { Task { await memories.rebuild(timeline: timeline, server: model.memories) } }
         .task(id: timeline.version) { await rebuildDerived() }
@@ -171,7 +187,7 @@ struct CollectionsView: View {
                     Button(String(localized: "Neu anordnen")) { reorder = true }
                 } label: {
                     Image(systemName: "ellipsis").font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white).frame(width: 46, height: 46)
+                        .foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 Menu {
@@ -182,7 +198,7 @@ struct CollectionsView: View {
                             Task { await model.load(); await timeline.reload(); await timeline.loadAll() }
                         }
                         Button(String(localized: "Abmelden"), systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                            ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); app.loggedIn = false
+                            ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear(); app.loggedIn = false
                         }
                     }
                     Section(String(localized: "\(timeline.totalCount.formatted()) Objekte auf deinem Server")) {}
@@ -348,6 +364,15 @@ struct CollectionsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    AssetMenu(assets: [a], style: .context, present: { app.sheet = $0 }) { model.featured.removeAll { $0.id == a.id } }
+                    Section {
+                        Button("Aus Empfohlenen entfernen", systemImage: "hand.thumbsdown") {
+                            withAnimation(.snappy) { model.removeFromFeatured(a.id) }
+                            app.toast(String(localized: "Wird nicht mehr empfohlen"))
+                        }
+                    }
+                }
             }
         }
     }

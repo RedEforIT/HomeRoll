@@ -556,6 +556,65 @@ final class EditRenderer: @unchecked Sendable {
     }
 }
 
+/// „Bearbeitungen kopieren / einsetzen“ wie Fotos (REA: PUPhotoEditCopyEdits / PastingEdits): nur Licht, Farbe,
+/// Filter und Stil wandern mit – Zuschnitt, Markierungen, Bereinigen, Schlüsselbild und Tiefe gehören zum einzelnen Foto.
+enum EditClipboard {
+    private static let key = "edit.clipboard"
+
+    static var current: EditState? {
+        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(EditState.self, from: $0) }
+    }
+    static var hasEdits: Bool { current != nil }
+
+    /// Nur die übertragbaren Teile merken; false = nichts Übertragbares (nur Zuschnitt o. Ä.).
+    @discardableResult
+    static func copy(_ s: EditState) -> Bool {
+        var c = EditState()
+        c.values = s.values; c.auto = s.auto; c.autoStrength = s.autoStrength; c.disabled = s.disabled
+        c.filter = s.filter; c.filterAmount = s.filterAmount
+        c.style = s.style; c.styleTone = s.styleTone; c.styleColor = s.styleColor; c.stylePalette = s.stylePalette
+        guard c.hasColor || c.auto else { return false }
+        UserDefaults.standard.set(try? JSONEncoder().encode(c), forKey: key)
+        return true
+    }
+
+    /// Übertragbare Teile in `s` übernehmen; Auto rechnet für das Zielbild neu.
+    static func apply(_ c: EditState, to s: inout EditState, autoValues: () -> [Adjust: Double]) {
+        s.values = c.values; s.auto = c.auto; s.autoStrength = c.autoStrength; s.disabled = c.disabled
+        s.filter = c.filter; s.filterAmount = c.filterAmount
+        s.style = c.style; s.styleTone = c.styleTone; s.styleColor = c.styleColor; s.stylePalette = c.stylePalette
+        s.autoValues = c.auto ? autoValues() : [:]
+    }
+
+    /// Einsetzen auf mehrere Fotos: jedes wird wie im Editor gerechnet und als bearbeitete Fassung gestapelt.
+    @MainActor
+    static func paste(on assets: [Asset], app: AppModel, timeline: TimelineStore) async {
+        guard let clip = current else { return }
+        let photos = assets.filter(\.isImage)
+        var done = 0
+        for (i, a) in photos.enumerated() {
+            app.busy = photos.count == 1 ? String(localized: "Bearbeitungen werden eingesetzt …") : String(localized: "Bearbeitungen einsetzen … \(i + 1) von \(photos.count)")
+            let session = EditSession(asset: a)
+            await session.load()
+            guard session.error == nil, let base = session.base else { continue }
+            EditClipboard.apply(clip, to: &session.state) { session.renderer.autoValues(for: base) }
+            if (try? await session.save()) != nil { done += 1 }
+        }
+        app.busy = nil
+        await timeline.reload()
+        app.toast(done == 0 ? String(localized: "Bearbeitungen konnten nicht eingesetzt werden")
+                  : done == 1 ? String(localized: "Bearbeitungen eingesetzt") : String(localized: "Bearbeitungen auf \(done) Fotos eingesetzt"))
+    }
+
+    /// „Bearbeitungen kopieren“ aus Mediathek/Einzelansicht: gespeicherten Stand des Fotos holen.
+    @MainActor
+    static func copy(from a: Asset, app: AppModel) async {
+        let session = EditSession(asset: a)
+        await session.load()
+        app.toast(copy(session.state) ? String(localized: "Bearbeitungen kopiert") : String(localized: "Dieses Foto hat keine Licht- oder Farbbearbeitungen"))
+    }
+}
+
 /// Lädt, merkt sich Herkunft (Server-Zuschnitt oder gestapelte Fassung) und sichert.
 @MainActor @Observable
 final class EditSession {

@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftUI
 
 @main
@@ -21,6 +22,12 @@ struct FotosApp: App {
             .onReceive(NotificationCenter.default.publisher(for: .sessionExpired)) { _ in
                 app.loggedIn = false
             }
+            // Tippen auf einen Treffer in der iPhone-Suche → wie ein homeroll://-Link
+            .onContinueUserActivity(CSSearchableItemActionType) { act in
+                if let s = act.userInfo?[CSSearchableItemActivityIdentifier] as? String, let url = URL(string: s) {
+                    NotificationCenter.default.post(name: .openFotosURL, object: url)
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .openSearch)) { n in
                 app.pendingQuery = n.object as? String
                 app.viewer = nil; app.showSearch = true
@@ -37,18 +44,19 @@ enum LibraryScale: String, CaseIterable, Identifiable {
 
 /// Filter/Sortierung der Mediathek – wie das Menü neben „Auswählen“ in Fotos.
 enum LibraryFilter: String, CaseIterable, Identifiable {
-    case all, favorites, edited, photos, videos, screenshots, shared, notInAlbum
+    case all, favorites, edited, photos, videos, livePhotos, portrait, screenshots, shared, notInAlbum
     var id: String { rawValue }
     var title: String {
         switch self {
         case .all: String(localized: "Alle Objekte"); case .favorites: String(localized: "Favoriten"); case .edited: String(localized: "Bearbeitet"); case .photos: String(localized: "Fotos")
-        case .videos: String(localized: "Videos"); case .screenshots: String(localized: "Bildschirmfotos"); case .shared: String(localized: "Geteilt mit dir"); case .notInAlbum: String(localized: "In keinem Album")
+        case .videos: "Videos"; case .livePhotos: "Live Photos"; case .portrait: "Porträt"
+        case .screenshots: "Bildschirmfotos"; case .shared: "Geteilt mit dir"; case .notInAlbum: "In keinem Album"
         }
     }
     var icon: String {
         switch self {
         case .all: "square.grid.3x3"; case .favorites: "heart"; case .edited: "slider.horizontal.3"; case .photos: "photo"
-        case .videos: "video"; case .screenshots: "camera.viewfinder"; case .shared: "person.2"; case .notInAlbum: "rectangle.stack.badge.minus"
+        case .videos: "video"; case .livePhotos: "livephoto"; case .portrait: "cube"; case .screenshots: "camera.viewfinder"; case .shared: "person.2"; case .notInAlbum: "rectangle.stack.badge.minus"
         }
     }
 }
@@ -67,6 +75,8 @@ final class AppModel {
     var showSearch = false
     /// Suchbegriff aus Siri/Kurzbefehlen (wird von der Suche übernommen)
     var pendingQuery: String?
+    /// Aus Spotlight/Link: diese Sammlung öffnen (CollectionsView übernimmt sie in den Navigationspfad)
+    var pendingRoute: CollectionRoute?
     var viewer: ViewerRequest?
     /// Rückblick, der gerade abgespielt wird (Vollbild)
     var memory: Memory?
@@ -77,6 +87,15 @@ final class AppModel {
     func reveal(_ id: String) {
         endSelection(); scale = .all; tab = .library; revealID = id
     }
+    /// „In Mediathek zeigen“ (REA: PXPhotoKitShowInLibraryActionPerformer) aus Einzelansicht, Sammlung oder Suche:
+    /// erst Einzelansicht/Suche schließen, dann in der Mediathek hinspringen.
+    func showInLibrary(_ id: String) {
+        let covered = viewer != nil || showSearch
+        viewer = nil; showSearch = false; memory = nil
+        if covered { Task { try? await Task.sleep(for: .milliseconds(450)); reveal(id) } } else { reveal(id) }
+    }
+    /// Gilt das Objekt außerhalb der Mediathek (Sammlung, Suche)? Dann bietet das Menü „In Mediathek zeigen“ an.
+    var outsideLibrary: Bool { tab != .library || showSearch }
     var userName = ""
     var userID = ""
 
