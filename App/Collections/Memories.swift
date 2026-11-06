@@ -34,6 +34,8 @@ struct MemoryPrefs: Codable {
     var lessPeople: Set<String> = []
     /// „Aus Rückblick entfernen“ (REA: PXStoryRemoveAssetActionPerformer): je Rückblick ausgeschlossene Fotos
     var removed: [String: Set<String>] = [:]
+    /// „Als Titelbild“ (REA: PXStoryMakeKeyPhotoActionPerformer): selbst gewähltes Titelbild je Rückblick
+    var keys: [String: String] = [:]
     struct Custom: Codable, Hashable { let id: String; let title: String; let ids: [String]; let created: Date }
 
     init() {}
@@ -51,6 +53,7 @@ struct MemoryPrefs: Codable {
         lessPlaces = try c.decodeIfPresent(Set<String>.self, forKey: .lessPlaces) ?? []
         lessPeople = try c.decodeIfPresent(Set<String>.self, forKey: .lessPeople) ?? []
         removed = try c.decodeIfPresent([String: Set<String>].self, forKey: .removed) ?? [:]
+        keys = try c.decodeIfPresent([String: String].self, forKey: .keys) ?? [:]
     }
 
     nonisolated static func dayKey(_ d: Date) -> String {
@@ -316,6 +319,14 @@ final class MemoryCenter {
     /// Abmelden: nichts vom bisherigen Konto stehen lassen.
     func reset() { items = []; builtAccount = ""; builtFor = ""; generation += 1 }
 
+    func setKey(_ assetID: String, for memoryID: String) {
+        var p = MemoryPrefs.shared; p.keys[memoryID] = assetID; MemoryPrefs.shared = p
+        guard let i = items.firstIndex(where: { $0.id == memoryID }), let a = items[i].assets.first(where: { $0.id == assetID }) else { return }
+        let m = items[i]
+        items[i] = Memory(id: m.id, title: m.title, subtitle: m.subtitle, assets: m.assets, key: a, date: m.date,
+                          custom: m.custom, place: m.place, personID: m.personID, personName: m.personName)
+    }
+
     /// Foto aus einem Rückblick nehmen; ist danach zu wenig übrig, verschwindet der Rückblick wie bei Apple.
     func remove(_ assetID: String, from memoryID: String) {
         var p = MemoryPrefs.shared; p.removed[memoryID, default: []].insert(assetID); MemoryPrefs.shared = p
@@ -372,7 +383,8 @@ enum MemoryEngine {
             // Rückblicke ohne eine einzige fertige Vorschau (Server rechnet noch) erst später zeigen – sonst schwarze Karte
             // nach dem Aussortieren (Serien, Bildschirmfotos) müssen genug Fotos bleiben, sonst ist es kein Rückblick
             guard picked.count >= Swift.max(3, min / 2),
-                  picked.contains(where: { ImageCache.shared.hash($0.id) != nil }), let key = keyPhoto(picked) else { return }
+                  picked.contains(where: { ImageCache.shared.hash($0.id) != nil }), let auto = keyPhoto(picked) else { return }
+            let key = prefs.keys[id].flatMap { k in picked.first { $0.id == k } } ?? auto
             out.append(Memory(id: id, title: prefs.titles[id] ?? title, subtitle: range(picked), assets: picked, key: key,
                               date: date ?? picked.last!.date, place: place))
         }
@@ -430,7 +442,7 @@ enum MemoryEngine {
         for c in prefs.custom where !prefs.deleted.contains(c.id) {
             let list = c.ids.compactMap { byID[$0] }.filter { !(prefs.removed[c.id]?.contains($0.id) ?? false) }
             let picked = curate(list, max: 60)
-            if let key = keyPhoto(picked) {
+            if let key = prefs.keys[c.id].flatMap({ k in picked.first { $0.id == k } }) ?? keyPhoto(picked) {
                 custom.append(Memory(id: c.id, title: prefs.titles[c.id] ?? c.title, subtitle: range(picked), assets: picked,
                                      key: key, date: c.created, custom: true))
             }
@@ -748,7 +760,8 @@ struct MemoryMenuItems: View {
                     less(String(localized: "Weniger aus \(place)")) { $0.lessPlaces.insert(place) }
                 }
             }
-            if memory.id.hasPrefix("today-") || memory.id.hasPrefix("trip-") || memory.custom {
+            // immer anbieten (sonst ist das Menü bei „Das Beste aus …“/Jahreszeiten leer und iOS blendet es aus)
+            do {
                 Button("Diese Tage weniger zeigen", systemImage: "calendar.badge.minus") {
                     let days = Set(memory.assets.map { MemoryPrefs.dayKey($0.date) })
                     less(String(localized: "Diese Tage erscheinen seltener")) { $0.lessDays.formUnion(days) }
@@ -842,6 +855,7 @@ struct MemoryGrid: View {
     let open: (Int) -> Void
     /// gesetzt = Fotos lassen sich aus dem Rückblick nehmen (lange drücken)
     var remove: ((Asset) -> Void)? = nil
+    var makeKey: ((Asset) -> Void)? = nil
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -849,6 +863,9 @@ struct MemoryGrid: View {
                     ForEach(Array(assets.enumerated()), id: \.element.id) { i, a in
                         Button { open(i) } label: { GridCell(asset: a) }.buttonStyle(.plain)
                             .contextMenu {
+                                if let makeKey, a.isImage {
+                                    Button("Als Titelbild verwenden", systemImage: "photo") { makeKey(a) }
+                                }
                                 if let remove {
                                     Button("Aus Rückblick entfernen", systemImage: "minus.circle", role: .destructive) { remove(a) }
                                 }

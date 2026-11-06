@@ -232,8 +232,15 @@ struct MemoryPlayer: View {
                                 custom: memory.custom, place: memory.place, personID: memory.personID, personName: memory.personName)
                 scenes = StoryTimeline.build(curated, mood: mood)
                 app.toast(String(localized: "Aus Rückblick entfernt"))
+            }, makeKey: { a in
+                MemoryCenter.shared.setKey(a.id, for: memory.id)
+                memory = Memory(id: memory.id, title: memory.title, subtitle: memory.subtitle, assets: memory.assets, key: a,
+                                date: memory.date, custom: memory.custom, place: memory.place, personID: memory.personID, personName: memory.personName)
+                app.toast(String(localized: "Titelbild festgelegt"))
             })
+            .overlay(alignment: .top) { ToastBadge() }
         }
+        .overlay(alignment: .top) { ToastBadge() }
         .fullScreenCover(item: $viewer) { r in ViewerView(assets: r.assets, start: r.index) }
         .alert(String(localized: "Titel bearbeiten"), isPresented: $renaming) {
             TextField(String(localized: "Titel"), text: $newTitle)

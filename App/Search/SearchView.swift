@@ -83,6 +83,7 @@ struct SearchView: View {
             .navigationDestination(for: CollectionRoute.self) { r in CollectionDetail(route: r, model: model) }
         }
         .actionSheets($sheet)
+        .overlay(alignment: .top) { VStack { BusyBadge(); ToastBadge() } }
         .task {
             focused = true
             async let c = try? ImmichClient.shared.cities()

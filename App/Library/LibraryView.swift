@@ -424,6 +424,11 @@ struct GridCell: View {
                 }
             }
             .contentShape(Rectangle())
+            // wie die Mediathek (AssetCell): VoiceOver liest „Foto, 13. September 2026“ statt nur „Favorit“
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel((asset.isVideo ? String(localized: "Video, ") : String(localized: "Foto, ")) + Fmt.dayLongMonthYear.string(from: asset.date))
+            .accessibilityValue(asset.isFavorite ? String(localized: "Favorit") : "")
+            .accessibilityAddTraits(selected == true ? [.isImage, .isSelected] : .isImage)
             .zoomSource(asset.id, zoomNS)
     }
 }

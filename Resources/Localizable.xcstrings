@@ -1194,6 +1194,16 @@
         }
       }
     },
+    "Als Titelbild verwenden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make Key Photo"
+          }
+        }
+      }
+    },
     "Aus Rückblick entfernt": {
       "localizations": {
         "en": {

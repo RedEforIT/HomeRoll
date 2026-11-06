@@ -192,9 +192,10 @@ struct ViewerView: View {
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 Spacer()
-                HStack(spacing: 26) {
+                HStack(spacing: 2) {
+                    // Tippfläche 44 × 52 (Apple: mindestens 44 pt), sonst traf man nur das 20-pt-Symbol
                     Button { toggleFavorite(a) } label: {
-                        Image(systemName: a.isFavorite ? "heart.fill" : "heart")
+                        Image(systemName: a.isFavorite ? "heart.fill" : "heart").frame(width: 44, height: 52).contentShape(.rect)
                     }
                     Button { showInfo = true } label: {
                         // wie Apple: Sterne am „i“, wenn sich etwas im Foto nachschlagen lässt
@@ -204,12 +205,13 @@ struct ViewerView: View {
                                     Image(systemName: "sparkle").font(.system(size: 9, weight: .bold)).offset(x: 5, y: -4)
                                 }
                             }
+                            .frame(width: 44, height: 52).contentShape(.rect)
                     }
                     .accessibilityLabel(analysis.hasLookUp(a.id) ? String(localized: "Info, Nachschlagen verfügbar") : String(localized: "Info"))
-                    Button { editing = a } label: { Image(systemName: "slider.horizontal.3") }
+                    Button { editing = a } label: { Image(systemName: "slider.horizontal.3").frame(width: 44, height: 52).contentShape(.rect) }
                         .accessibilityLabel(String(localized: "Bearbeiten"))
                 }
-                .padding(.horizontal, 24).frame(height: 52)
+                .padding(.horizontal, 12).frame(height: 52)
                 .glassEffect(.regular.interactive(), in: .capsule)
                 Spacer()
                 Button(role: .destructive) { trash(a) } label: {
