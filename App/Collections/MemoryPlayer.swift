@@ -115,7 +115,7 @@ final class StoryVideos {
 }
 
 struct MemoryPlayer: View {
-    let memory: Memory
+    @State var memory: Memory
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var app
     @State private var clock = StoryClock()
@@ -140,7 +140,7 @@ struct MemoryPlayer: View {
     @State private var next: Memory?
 
     init(memory: Memory) {
-        self.memory = memory
+        _memory = State(initialValue: memory)
         let p = MemoryPrefs.shared
         _mood = State(initialValue: MemoryMood(rawValue: p.mood[memory.id] ?? 1) ?? .gentle)
         _style = State(initialValue: MemoryStyle(rawValue: p.style[memory.id] ?? 0) ?? .natural)
@@ -222,7 +222,17 @@ struct MemoryPlayer: View {
         }
         .sheet(isPresented: $mixSheet, onDismiss: { if !chrome && !ended { resume() } }) { mixPicker.presentationDetents([.height(330)]) }
         .sheet(isPresented: $grid) {
-            MemoryGrid(assets: memory.assets) { i in grid = false; viewer = ViewerRequest(assets: memory.assets, index: i) }
+            MemoryGrid(assets: memory.assets, open: { i in grid = false; viewer = ViewerRequest(assets: memory.assets, index: i) },
+                       remove: { a in
+                MemoryCenter.shared.remove(a.id, from: memory.id)
+                let rest = memory.assets.filter { $0.id != a.id }
+                guard rest.count >= 3 else { grid = false; app.toast(String(localized: "Rückblick entfernt – zu wenige Fotos")); close(); return }
+                memory = Memory(id: memory.id, title: memory.title, subtitle: MemoryEngine.range(rest), assets: rest,
+                                key: memory.key.id == a.id ? (MemoryEngine.keyPhoto(rest) ?? rest[0]) : memory.key, date: memory.date,
+                                custom: memory.custom, place: memory.place, personID: memory.personID, personName: memory.personName)
+                scenes = StoryTimeline.build(curated, mood: mood)
+                app.toast(String(localized: "Aus Rückblick entfernt"))
+            })
         }
         .fullScreenCover(item: $viewer) { r in ViewerView(assets: r.assets, start: r.index) }
         .alert(String(localized: "Titel bearbeiten"), isPresented: $renaming) {

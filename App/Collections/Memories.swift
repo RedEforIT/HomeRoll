@@ -32,6 +32,8 @@ struct MemoryPrefs: Codable {
     var lessDays: Set<String> = []
     var lessPlaces: Set<String> = []
     var lessPeople: Set<String> = []
+    /// „Aus Rückblick entfernen“ (REA: PXStoryRemoveAssetActionPerformer): je Rückblick ausgeschlossene Fotos
+    var removed: [String: Set<String>] = [:]
     struct Custom: Codable, Hashable { let id: String; let title: String; let ids: [String]; let created: Date }
 
     init() {}
@@ -48,6 +50,7 @@ struct MemoryPrefs: Codable {
         lessDays = try c.decodeIfPresent(Set<String>.self, forKey: .lessDays) ?? []
         lessPlaces = try c.decodeIfPresent(Set<String>.self, forKey: .lessPlaces) ?? []
         lessPeople = try c.decodeIfPresent(Set<String>.self, forKey: .lessPeople) ?? []
+        removed = try c.decodeIfPresent([String: Set<String>].self, forKey: .removed) ?? [:]
     }
 
     nonisolated static func dayKey(_ d: Date) -> String {
@@ -284,9 +287,9 @@ final class MemoryCenter {
                     guard let day = cal.date(from: c) else { return false }
                     return abs(a.date.timeIntervalSince(day) / 86_400) <= 1.5
                 }
-            let picked = MemoryEngine.curate(list, max: 40)
-            guard picked.count >= 4, let key = MemoryEngine.keyPhoto(picked) else { continue }
             let id = "birthday-\(p.id)"
+            let picked = MemoryEngine.curate(list.filter { !(prefs.removed[id]?.contains($0.id) ?? false) }, max: 40)
+            guard picked.count >= 4, let key = MemoryEngine.keyPhoto(picked) else { continue }
             let m = Memory(id: id, title: prefs.titles[id] ?? String(localized: "Geburtstag von \(p.name)"), subtitle: MemoryEngine.range(picked),
                            assets: picked, key: key, date: picked.last!.date, personID: p.id, personName: p.name)
             var next = cal.dateComponents([.year], from: now); next.month = bm; next.day = bd
@@ -312,6 +315,18 @@ final class MemoryCenter {
 
     /// Abmelden: nichts vom bisherigen Konto stehen lassen.
     func reset() { items = []; builtAccount = ""; builtFor = ""; generation += 1 }
+
+    /// Foto aus einem Rückblick nehmen; ist danach zu wenig übrig, verschwindet der Rückblick wie bei Apple.
+    func remove(_ assetID: String, from memoryID: String) {
+        var p = MemoryPrefs.shared; p.removed[memoryID, default: []].insert(assetID); MemoryPrefs.shared = p
+        guard let i = items.firstIndex(where: { $0.id == memoryID }) else { return }
+        let m = items[i]
+        let rest = m.assets.filter { $0.id != assetID }
+        if rest.count < 3 { items.remove(at: i); return }
+        let key = m.key.id == assetID ? (MemoryEngine.keyPhoto(rest) ?? rest[0]) : m.key
+        items[i] = Memory(id: m.id, title: m.title, subtitle: MemoryEngine.range(rest), assets: rest, key: key, date: m.date,
+                          custom: m.custom, place: m.place, personID: m.personID, personName: m.personName)
+    }
 
     func update(_ change: (inout MemoryPrefs) -> Void) {
         var p = MemoryPrefs.shared; change(&p); MemoryPrefs.shared = p
@@ -350,7 +365,8 @@ enum MemoryEngine {
         func add(_ id: String, _ title: String, _ list: [Asset], min: Int, max: Int = 50, date: Date? = nil, place: String? = nil) {
             guard list.count >= min, !prefs.deleted.contains(id) else { return }
             if let place, prefs.lessPlaces.contains(place) { return }
-            let list = prefs.lessDays.isEmpty ? list : list.filter { !prefs.lessDays.contains(MemoryPrefs.dayKey($0.date)) }
+            var list = prefs.lessDays.isEmpty ? list : list.filter { !prefs.lessDays.contains(MemoryPrefs.dayKey($0.date)) }
+            if let gone = prefs.removed[id] { list.removeAll { gone.contains($0.id) } }
             guard list.count >= min else { return }
             let picked = curate(list, max: max)
             // Rückblicke ohne eine einzige fertige Vorschau (Server rechnet noch) erst später zeigen – sonst schwarze Karte
@@ -412,7 +428,7 @@ enum MemoryEngine {
         let byID = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         var custom: [Memory] = []
         for c in prefs.custom where !prefs.deleted.contains(c.id) {
-            let list = c.ids.compactMap { byID[$0] }
+            let list = c.ids.compactMap { byID[$0] }.filter { !(prefs.removed[c.id]?.contains($0.id) ?? false) }
             let picked = curate(list, max: 60)
             if let key = keyPhoto(picked) {
                 custom.append(Memory(id: c.id, title: prefs.titles[c.id] ?? c.title, subtitle: range(picked), assets: picked,
@@ -824,12 +840,19 @@ struct CreateMemorySheet: View {
 struct MemoryGrid: View {
     let assets: [Asset]
     let open: (Int) -> Void
+    /// gesetzt = Fotos lassen sich aus dem Rückblick nehmen (lange drücken)
+    var remove: ((Asset) -> Void)? = nil
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 3), spacing: 2) {
                     ForEach(Array(assets.enumerated()), id: \.element.id) { i, a in
                         Button { open(i) } label: { GridCell(asset: a) }.buttonStyle(.plain)
+                            .contextMenu {
+                                if let remove {
+                                    Button("Aus Rückblick entfernen", systemImage: "minus.circle", role: .destructive) { remove(a) }
+                                }
+                            }
                     }
                 }
             }

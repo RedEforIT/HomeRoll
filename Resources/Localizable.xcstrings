@@ -166,6 +166,16 @@
         }
       }
     },
+    "%lld Alben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Albums"
+          }
+        }
+      }
+    },
     "%lld Fotos": {
       "localizations": {
         "en": {
@@ -314,6 +324,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Backing up %lld items …"
+          }
+        }
+      }
+    },
+    "%lld Objekte zu „%@“ hinzugefügt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items added to “%@”"
           }
         }
       }
@@ -480,6 +500,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld recovered"
+          }
+        }
+      }
+    },
+    "1 Album": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Album"
           }
         }
       }
@@ -720,6 +750,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Albums"
+          }
+        }
+      }
+    },
+    "Alben lange drücken → „In Ordner bewegen“.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touch and hold an album → “Move to Folder”."
           }
         }
       }
@@ -1140,6 +1180,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Remove from Favorites"
+          }
+        }
+      }
+    },
+    "Aus Rückblick entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from Memory"
+          }
+        }
+      }
+    },
+    "Aus Rückblick entfernt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removed from memory"
+          }
+        }
+      }
+    },
+    "Aus „%@“ entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from “%@”"
           }
         }
       }
@@ -2795,6 +2865,16 @@
         }
       }
     },
+    "In Ordner bewegen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Folder"
+          }
+        }
+      }
+    },
     "In keinem Album": {
       "localizations": {
         "en": {
@@ -3727,6 +3807,16 @@
         }
       }
     },
+    "Neuer Ordner": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Folder"
+          }
+        }
+      }
+    },
     "Neues Album": {
       "localizations": {
         "en": {
@@ -3963,6 +4053,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Use Optic ID or enter your passcode to view this album"
+          }
+        }
+      }
+    },
+    "Ordner gelöscht – die Alben bleiben erhalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder deleted – the albums are kept"
+          }
+        }
+      }
+    },
+    "Ordner ist leer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder Is Empty"
+          }
+        }
+      }
+    },
+    "Ordner löschen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Folder"
+          }
+        }
+      }
+    },
+    "Ordner umbenennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Folder"
           }
         }
       }
@@ -4333,6 +4463,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Memory"
+          }
+        }
+      }
+    },
+    "Rückblick entfernt – zu wenige Fotos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Memory removed – too few photos"
           }
         }
       }

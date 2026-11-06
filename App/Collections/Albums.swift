@@ -307,7 +307,28 @@ struct AlbumScreen: View {
 
 extension View {
     /// Langes Drücken auf ein Album wie in Fotos: Fotos teilen, Fotos hinzufügen, Titel bearbeiten, löschen, anpinnen.
-    func albumContextMenu(_ album: AlbumDTO) -> some View { modifier(AlbumContextMenu(album: album)) }
+    func albumContextMenu(_ album: AlbumDTO) -> some View { modifier(AlbumContextMenu(album: album)).modifier(AlbumDropTarget(album: album)) }
+}
+
+/// Fotos auf ein Album ziehen (REA: PXPhotoKitAssetCollectionDropAssetsActionPerformer): aus dem Raster gezogene
+/// Objekte tragen „homeroll-asset:<id>“ (nur innerhalb der App) und landen im Album.
+private struct AlbumDropTarget: ViewModifier {
+    let album: AlbumDTO
+    @Environment(AppModel.self) private var app
+    @State private var over = false
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if over { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.accentColor, lineWidth: 3) }
+            }
+            .dropDestination(for: String.self) { items, _ in
+                let ids = items.compactMap { $0.hasPrefix("homeroll-asset:") ? String($0.dropFirst(15)) : nil }
+                guard !ids.isEmpty else { return false }
+                Task { await AlbumActions.add(album.id, ids) }
+                app.toast(ids.count == 1 ? String(localized: "Zu „\(album.albumName)“ hinzugefügt") : String(localized: "\(ids.count) Objekte zu „\(album.albumName)“ hinzugefügt"))
+                return true
+            } isTargeted: { over = $0 }
+    }
 }
 
 private struct AlbumContextMenu: ViewModifier {
@@ -329,6 +350,20 @@ private struct AlbumContextMenu: ViewModifier {
                 Button(String(localized: "Fotos hinzufügen"), systemImage: "plus") { picker = true }
                 Divider()
                 Button(String(localized: "Titel bearbeiten"), systemImage: "pencil") { newName = album.albumName; renaming = true }
+                let folders = AlbumFolders.shared
+                let current = folders.folder(of: album.id)
+                if !folders.folders.isEmpty {
+                    Menu {
+                        ForEach(folders.folders.filter { $0.id != current?.id }) { f in
+                            Button(f.name, systemImage: "folder") { withAnimation(.snappy) { folders.move(album.id, to: f.id) } }
+                        }
+                    } label: { Label("In Ordner bewegen", systemImage: "folder") }
+                }
+                if let current {
+                    Button("Aus „\(current.name)“ entfernen", systemImage: "folder.badge.minus") {
+                        withAnimation(.snappy) { folders.move(album.id, to: nil) }
+                    }
+                }
                 Button(String(localized: "Album löschen"), systemImage: "trash", role: .destructive) { confirmDelete = true }
                 Divider()
                 Button(pinned ? String(localized: "Nicht mehr anpinnen") : String(localized: "Anpinnen"), systemImage: pinned ? "pin.slash" : "pin") {
@@ -360,16 +395,68 @@ private struct AlbumContextMenu: ViewModifier {
 }
 
 /// Tippen auf „Alben >“: alle Alben groß mit Anzahl, Sortierung und „Neues Album“.
+/// Album-Ordner wie in Fotos (REA: PXPhotoKitCollectionListCreateCollection / Move / MoveOut / Rename / Delete).
+/// Immich kennt keine Ordner (Alben haben kein Eltern-Feld) → die Einteilung lebt auf diesem Gerät, je Konto;
+/// Alben auf dem Server bleiben unverändert, ein gelöschter Ordner gibt seine Alben wieder frei.
+@MainActor @Observable
+final class AlbumFolders {
+    static let shared = AlbumFolders()
+    struct Folder: Codable, Identifiable, Hashable { let id: String; var name: String; var albums: [String] }
+    private(set) var folders: [Folder] = []
+    private var account = ""
+
+    private var key: String { "albumFolders.\(account)" }
+    func use(_ account: String) {
+        guard account != self.account else { return }
+        self.account = account
+        folders = UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([Folder].self, from: $0) } ?? []
+    }
+    private func save() { UserDefaults.standard.set(try? JSONEncoder().encode(folders), forKey: key) }
+
+    func folder(of album: String) -> Folder? { folders.first { $0.albums.contains(album) } }
+    func create(_ name: String) -> Folder {
+        let f = Folder(id: UUID().uuidString, name: name, albums: [])
+        folders.append(f); save(); return f
+    }
+    func rename(_ id: String, _ name: String) {
+        guard let i = folders.firstIndex(where: { $0.id == id }) else { return }
+        folders[i].name = name; save()
+    }
+    func delete(_ id: String) { folders.removeAll { $0.id == id }; save() }
+    /// nil = aus jedem Ordner nehmen (zurück nach „Alben“)
+    func move(_ album: String, to folder: String?) {
+        for i in folders.indices { folders[i].albums.removeAll { $0 == album } }
+        if let folder, let i = folders.firstIndex(where: { $0.id == folder }) { folders[i].albums.append(album) }
+        save()
+    }
+}
+
 struct AlbumsListScreen: View {
     let model: CollectionsModel
+    /// nil = oberste Ebene (Ordner + Alben ohne Ordner), sonst Inhalt dieses Ordners
+    var folderID: String? = nil
+    @Environment(AppModel.self) private var app
     @AppStorage("albumSort") private var sortRaw = AlbumSort.modified.rawValue
     @State private var newAlbum = false
+    @State private var naming: (id: String?, name: String)?
+    @State private var folders = AlbumFolders.shared
+
+    private var folder: AlbumFolders.Folder? { folderID.flatMap { id in folders.folders.first { $0.id == id } } }
+    private func visible(_ sort: AlbumSort) -> [AlbumDTO] {
+        let all = sort.apply(model.albums)
+        if let folder { return all.filter { folder.albums.contains($0.id) } }
+        let filed = Set(folders.folders.flatMap(\.albums))
+        return all.filter { !filed.contains($0.id) }
+    }
 
     var body: some View {
         let sort = AlbumSort(rawValue: sortRaw) ?? .modified
         ScrollView {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 18) {
-                ForEach(sort.apply(model.albums)) { a in
+                if folderID == nil {
+                    ForEach(folders.folders) { f in folderTile(f) }
+                }
+                ForEach(visible(sort)) { a in
                     NavigationLink(value: CollectionRoute.album(AlbumRef(id: a.id, name: a.albumName))) {
                         VStack(alignment: .leading, spacing: 4) {
                             Group { if let t = a.albumThumbnailAssetId { AssetThumb(id: t, size: .preview) } else { Color(white: 0.14) } }
@@ -387,11 +474,32 @@ struct AlbumsListScreen: View {
             .padding(.bottom, 90)
         }
         .background(Color.black)
-        .navigationTitle(String(localized: "Alben"))
+        .navigationTitle(folder?.name ?? String(localized: "Alben"))
+        .onAppear { folders.use(app.userID) }
+        .overlay {
+            if folderID != nil, visible(sort).isEmpty {
+                ContentUnavailableView("Ordner ist leer", systemImage: "folder",
+                                       description: Text("Alben lange drücken → „In Ordner bewegen“."))
+            }
+        }
+        .alert(naming?.id == nil ? "Neuer Ordner" : "Ordner umbenennen",
+               isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            TextField("Name", text: Binding(get: { naming?.name ?? "" }, set: { naming?.name = $0 }))
+            Button("Abbrechen", role: .cancel) {}
+            Button("Sichern") {
+                guard let n = naming else { return }
+                let name = n.name.trimmingCharacters(in: .whitespaces)
+                guard !name.isEmpty else { return }
+                if let id = n.id { folders.rename(id, name) } else { _ = folders.create(name) }
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button(String(localized: "Neues Album"), systemImage: "plus") { newAlbum = true }
+                    if folderID == nil {
+                        Button("Neuer Ordner", systemImage: "folder.badge.plus") { naming = (nil, "") }
+                    }
                     Picker(String(localized: "Sortieren"), selection: $sortRaw) {
                         ForEach(AlbumSort.allCases) { Text($0.title).tag($0.rawValue) }
                     }
@@ -399,7 +507,41 @@ struct AlbumsListScreen: View {
                 } label: { Image(systemName: "ellipsis") }
             }
         }
-        .sheet(isPresented: $newAlbum) { NewAlbumSheet() }
+        .sheet(isPresented: $newAlbum) {
+            NewAlbumSheet { created in if let folderID { folders.move(created.id, to: folderID) } }
+        }
+    }
+
+    /// Ordner-Kachel: bis zu vier Schlüsselfotos der Alben darin
+    private func folderTile(_ f: AlbumFolders.Folder) -> some View {
+        let covers = model.albums.filter { f.albums.contains($0.id) }.compactMap(\.albumThumbnailAssetId).prefix(4)
+        return NavigationLink(value: CollectionRoute.albumFolder(f.id)) {
+            VStack(alignment: .leading, spacing: 4) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(white: 0.14))
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        if covers.isEmpty {
+                            Image(systemName: "folder").font(.system(size: 44)).foregroundStyle(.secondary)
+                        } else {
+                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 4), GridItem(.flexible(), spacing: 4)], spacing: 4) {
+                                ForEach(Array(covers), id: \.self) { AssetThumb(id: $0).aspectRatio(1, contentMode: .fill)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous)) }
+                            }
+                            .padding(8)
+                        }
+                    }
+                Label(f.name, systemImage: "folder").font(.system(size: 16, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                Text(f.albums.count == 1 ? "1 Album" : "\(f.albums.count) Alben").font(.system(size: 14)).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Umbenennen", systemImage: "pencil") { naming = (f.id, f.name) }
+            Button("Ordner löschen", systemImage: "trash", role: .destructive) {
+                folders.delete(f.id)
+                app.toast(String(localized: "Ordner gelöscht – die Alben bleiben erhalten"))
+            }
+        }
     }
 }
 

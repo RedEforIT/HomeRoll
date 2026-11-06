@@ -21,6 +21,7 @@ struct CollectionDetail: View {
         case .allMediaTypes: CategoryListScreen(title: String(localized: "Medienarten"), items: Category.mediaTypes)
         case .allOthers: CategoryListScreen(title: String(localized: "Sonstige"), items: Category.others)
         case .allAlbums: AlbumsListScreen(model: model)
+        case .albumFolder(let id): AlbumsListScreen(model: model, folderID: id)
         case .album(let a): AlbumScreen(ref: a)
         case .allPeople:
             PeopleScreen(people: model.people)
