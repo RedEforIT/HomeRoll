@@ -321,13 +321,24 @@ private struct AlbumDropTarget: ViewModifier {
             .overlay {
                 if over { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.accentColor, lineWidth: 3) }
             }
-            .dropDestination(for: String.self) { items, _ in
-                let ids = items.compactMap { $0.hasPrefix("homeroll-asset:") ? String($0.dropFirst(15)) : nil }
-                guard !ids.isEmpty else { return false }
-                Task { await AlbumActions.add(album.id, ids) }
-                app.toast(ids.count == 1 ? String(localized: "Zu „\(album.albumName)“ hinzugefügt") : String(localized: "\(ids.count) Objekte zu „\(album.albumName)“ hinzugefügt"))
+            // onDrop statt dropDestination: nimmt auch die NSString-Kennung der UIKit-Rasterzellen an
+            .onDrop(of: [.plainText], isTargeted: $over) { providers in
+                let name = album.albumName, id = album.id
+                Task { @MainActor in
+                    var ids: [String] = []
+                    for p in providers {
+                        let s: String? = await withCheckedContinuation { c in
+                            _ = p.loadObject(ofClass: NSString.self) { obj, _ in c.resume(returning: (obj as? NSString) as String?) }
+                        }
+                        guard let s, s.hasPrefix("homeroll-asset:") else { continue }
+                        ids.append(String(s.dropFirst(15)))
+                    }
+                    guard !ids.isEmpty else { return }
+                    await AlbumActions.add(id, ids)
+                    app.toast(ids.count == 1 ? String(localized: "Zu „\(name)“ hinzugefügt") : String(localized: "\(ids.count) Objekte zu „\(name)“ hinzugefügt"))
+                }
                 return true
-            } isTargeted: { over = $0 }
+            }
     }
 }
 
