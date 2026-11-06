@@ -14,6 +14,8 @@ struct ViewerView: View {
     @State private var analysis = PhotoAnalysis()
     /// Live-Photo-Effekt je Foto (gemerkt, siehe LiveMode)
     @State private var liveModes: [String: LiveMode] = [:]
+    /// Wischen durch die Vorschau-Leiste: Fotos wechseln im Takt, Video und Analyse erst beim Loslassen
+    @State private var stripScrubbing = false
     @Environment(\.dismiss) private var dismiss
     @Environment(TimelineStore.self) private var timeline
     @Environment(AppModel.self) private var app
@@ -44,8 +46,14 @@ struct ViewerView: View {
                     topBar(a)
                     if a.isLivePhoto && a.isImage { liveMenu(a).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 18) }
                     Spacer()
-                    if a.isVideo { VideoScrubber(video: video).padding(.bottom, 10) }
-                    else if assets.count > 1 { Filmstrip(assets: assets, selection: $selection).padding(.bottom, 10) }
+                    if a.isVideo { VideoControls(video: video).padding(.bottom, 6) }
+                    if assets.count > 1 || a.isVideo {
+                        ScrubberStrip(assets: assets, selection: $selection, video: video) { on in
+                            stripScrubbing = on
+                            if !on { settled(selection) }
+                        }
+                        .frame(height: 30).padding(.bottom, 10)
+                    }
                     bottomBar(a)
                 }
                 .transition(.opacity)
@@ -53,11 +61,9 @@ struct ViewerView: View {
         }
         .statusBarHidden(!chrome)
         .onChange(of: selection, initial: true) { _, id in
-            guard !id.isEmpty else { return }
-            RecentStore.add(id, to: .recentlyViewed)
             app.zoomID = id   // beim Schließen zur gerade gezeigten Kachel zurückzoomen
-            // Videos starten sofort (wie Apple), Wegwischen hält an
-            if let a = current, a.isVideo, !Connectivity.shared.serverOffline { video.attach(a); video.play() } else { video.stop() }
+            if stripScrubbing { video.stop(); return }
+            settled(id)
         }
         // Während ein Video läuft, blenden sich die Leisten nach kurzer Zeit aus; angehalten kommen sie zurück
         .task(id: "\(video.playing)\(chrome)") {
@@ -69,9 +75,9 @@ struct ViewerView: View {
         .onChange(of: video.playing) { _, p in if !p { withAnimation(.easeInOut(duration: 0.2)) { chrome = true } } }
         .onDisappear { video.stop() }
         // Text/Objekte im Foto erkennen, sobald es gezeigt wird (VisionKit, auf dem iPhone)
-        .task(id: selection) {
+        .task(id: "\(selection)\(stripScrubbing)") {
             analysis.lookUp = false
-            if let a = current { await analysis.analyze(a) }
+            if !stripScrubbing, let a = current { await analysis.analyze(a) }
         }
         .overlay(alignment: .top) { VStack { BusyBadge(); ToastBadge() } }
         .actionSheets($sheet)
@@ -85,6 +91,13 @@ struct ViewerView: View {
                     .presentationDetents([.medium, .large])
             }
         }
+    }
+
+    /// Foto steht (nicht nur vorbeigewischt): merken, Video starten (wie Apple sofort), sonst anhalten.
+    private func settled(_ id: String) {
+        guard !id.isEmpty else { return }
+        RecentStore.add(id, to: .recentlyViewed)
+        if let a = current, a.isVideo, !Connectivity.shared.serverOffline { video.attach(a); video.play() } else { video.stop() }
     }
 
     private func topBar(_ a: Asset) -> some View {
@@ -845,33 +858,3 @@ enum Provenance {
     }
 }
 
-/// Vorschau-Leiste über den Knöpfen (wie Fotos): aktuelles Bild breiter, Tippen springt hin.
-private struct Filmstrip: View {
-    let assets: [Asset]
-    @Binding var selection: String
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 2) {
-                    ForEach(assets) { a in
-                        let current = a.id == selection
-                        Button { selection = a.id } label: {
-                            AssetThumb(id: a.id)
-                                .frame(width: current ? 32 : 20, height: 30)
-                                .clipShape(RoundedRectangle(cornerRadius: 2))
-                                .padding(.horizontal, current ? 5 : 0)
-                        }
-                        .buttonStyle(.plain)
-                        .id(a.id)
-                    }
-                }
-                .padding(.horizontal, UIScreen.main.bounds.width / 2)
-            }
-            .scrollIndicators(.hidden)
-            .frame(height: 30)
-            .onAppear { proxy.scrollTo(selection, anchor: .center) }
-            .onChange(of: selection) { _, id in withAnimation(.snappy) { proxy.scrollTo(id, anchor: .center) } }
-        }
-    }
-}

@@ -77,6 +77,49 @@ final class VideoState {
         p.seek(to: CMTime(seconds: t, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
     }
 
+    // MARK: Spulen aus der Vorschau-Leiste (wie PXVideoScrubberController: höchstens eine Suche läuft,
+    // neuere warten und nur die letzte zählt – sonst stauen sich Bereichsanfragen ans Server-Video und es hängt)
+
+    @ObservationIgnored private var seeking = false
+    @ObservationIgnored private var pendingSeek: Double?
+
+    func beginScrub() {
+        guard player != nil else { return }
+        scrubbing = true
+        player?.pause()
+        playing = false
+    }
+
+    func scrub(to fraction: Double) {
+        guard duration > 0 else { return }
+        let t = max(0, min(1, fraction)) * duration
+        time = t
+        if seeking { pendingSeek = t } else { startSeek(t, exact: false) }
+    }
+
+    func endScrub(resume: Bool) {
+        guard scrubbing else { return }
+        scrubbing = false
+        let t = pendingSeek ?? time
+        pendingSeek = nil
+        startSeek(t, exact: true)
+        if resume { player?.play(); playing = true }
+    }
+
+    private func startSeek(_ t: Double, exact: Bool) {
+        guard let p = player else { return }
+        seeking = true
+        // beim Ziehen reicht das nächste Schlüsselbild in der Nähe (schnell), am Ende genau
+        let tol = exact ? CMTime.zero : CMTime(seconds: 0.15, preferredTimescale: 600)
+        p.seek(to: CMTime(seconds: t, preferredTimescale: 600), toleranceBefore: tol, toleranceAfter: tol) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.seeking = false
+                if let next = self.pendingSeek { self.pendingSeek = nil; self.startSeek(next, exact: !self.scrubbing) }
+            }
+        }
+    }
+
     func stop() {
         player?.pause()
         if let o = timeObserver { player?.removeTimeObserver(o) }
@@ -84,6 +127,7 @@ final class VideoState {
         timeObserver = nil; endObserver = nil
         framesTask?.cancel(); framesTask = nil
         player = nil; playing = false; time = 0; frames = []; id = ""; slowMo = nil
+        seeking = false; pendingSeek = nil; scrubbing = false
     }
 
     /// ~14 Standbilder gleichmäßig über das Video (Bereichsanfragen an den Server, nicht das ganze Video).
@@ -125,55 +169,25 @@ struct PlayerSurface: UIViewRepresentable {
     }
 }
 
-/// Leiste unter dem Video: Wiedergabe/Pause + Filmstreifen mit Abspielkopf, Ziehen spult (wie Apple).
-struct VideoScrubber: View {
+/// Über der Vorschau-Leiste beim Video: Wiedergabe/Pause und Restzeit. Gespult wird in der Leiste selbst
+/// (das Video ist dort eingebettet, die Mitte ist der Abspielkopf – siehe ScrubberStrip).
+struct VideoControls: View {
     @Bindable var video: VideoState
-    @State private var wasPlaying = false
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack {
             Button { video.toggle() } label: {
                 Image(systemName: video.playing ? "pause.fill" : "play.fill")
-                    .font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
+                    .font(.system(size: 17, weight: .semibold)).foregroundStyle(.white)
+                    .frame(width: 40, height: 40).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             .accessibilityLabel(video.playing ? String(localized: "Pause") : String(localized: "Wiedergabe"))
-            GeometryReader { geo in
-                let w = geo.size.width
-                ZStack(alignment: .leading) {
-                    HStack(spacing: 0) {
-                        if video.frames.isEmpty {
-                            Color(white: 0.2)
-                        } else {
-                            ForEach(Array(video.frames.enumerated()), id: \.offset) { _, f in
-                                Image(uiImage: f).resizable().scaledToFill()
-                                    .frame(width: w / CGFloat(video.frames.count), height: 40).clipped()
-                            }
-                        }
-                    }
-                    .frame(width: w, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    // Abspielkopf
-                    RoundedRectangle(cornerRadius: 2).fill(.white)
-                        .frame(width: 4, height: 50)
-                        .shadow(color: .black.opacity(0.5), radius: 3)
-                        .offset(x: video.duration > 0 ? CGFloat(video.time / video.duration) * (w - 4) : 0)
-                }
-                .frame(height: 50)
-                .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: 0)
-                    .onChanged { g in
-                        if !video.scrubbing { video.scrubbing = true; wasPlaying = video.playing; video.pause() }
-                        video.seek(fraction: Double(g.location.x / w))
-                    }
-                    .onEnded { _ in video.scrubbing = false; if wasPlaying { video.play() } })
-            }
-            .frame(height: 50)
+            Spacer()
             Text(Fmt.duration(Int(max(0, video.duration - video.time) * 1000)))
                 .font(.system(size: 13, weight: .semibold).monospacedDigit()).foregroundStyle(.white)
-                .shadow(radius: 3)
-                .frame(width: 44)
+                .padding(.horizontal, 10).frame(height: 28)
+                .glassEffect(.regular, in: .capsule)
         }
         .padding(.horizontal, 16)
     }
