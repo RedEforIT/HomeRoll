@@ -9,10 +9,11 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 > Not affiliated with Apple or with Immich/FUTO. "Immich" is a trademark of its owners.
 
 <p align="center">
-  <img src="docs/screenshots/1-library.png" width="200" alt="Library">
-  <img src="docs/screenshots/4-years.png" width="200" alt="Years">
-  <img src="docs/screenshots/2-viewer.png" width="200" alt="Viewer">
-  <img src="docs/screenshots/3-editor.png" width="200" alt="Editor">
+  <img src="docs/screenshots/1-library.png" width="160" alt="Library">
+  <img src="docs/screenshots/4-years.png" width="160" alt="Years">
+  <img src="docs/screenshots/2-viewer.png" width="160" alt="Viewer">
+  <img src="docs/screenshots/3-editor.png" width="160" alt="Editor">
+  <img src="docs/screenshots/5-backup.png" width="160" alt="Backup to your own server">
 </p>
 <p align="center"><sub>Screenshots with public-domain sample photos (NASA/Kennedy Space Center, ISS crew).</sub></p>
 
