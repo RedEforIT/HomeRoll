@@ -58,6 +58,7 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 
 **Backup & system**
 - Backup engine: new iPhone photos and videos as originals (checksum dedupe, Live Photos, favorites, hidden, edited stacks, local time)
+- Backs up the entire library by default (iCloud-only photos are downloaded for it); already imported older photos another way, e.g. with icloudpd? Set the date and only newer ones are backed up
 - **Free Up Space**: delete from the iPhone only what is verified on your server (backup checksum + server check, not in the server trash), by age, favorites kept; iOS asks first and keeps them 30 days in Recently Deleted
 - Widgets (Memories, Featured Photos), share extension ("save to my server" from any app)
 - Shared links, Immich partner sharing ("shared library")

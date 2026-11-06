@@ -7,14 +7,12 @@ import BackgroundTasks
 /// - Lädt nur Originale (`.photo`, `.video`, `.pairedVideo`); eine Bearbeitung aus Fotos kommt als eigene Fassung
 ///   oben auf das Original (Stapel + Tag „Kategorie/Bearbeitet“) – wie beim iCloud-Import.
 /// - Duplikate erkennt der Server über die SHA1 (`bulk-upload-check`, Header `x-immich-checksum`).
-/// - Ältere Objekte als `cutoff` sind schon aus iCloud importiert: werden nur geprüft, wenn sie lokal liegen
-///   (kein Nachladen aus iCloud), und nur mit „Ganze Mediathek prüfen“.
+/// - Ältere Objekte als `importCutoff` liegen schon auf dem Server (z. B. per icloudpd importiert): werden nur geprüft,
+///   wenn sie lokal liegen (kein Nachladen aus iCloud), und nur mit „Ganze Mediathek prüfen“. Ohne Datum wird alles gesichert.
 @MainActor @Observable
 final class BackupEngine {
     static let shared = BackupEngine()
     nonisolated static let taskID = "org.homeroll.app.backup"
-    /// Ab hier fehlt der iCloud-Import (Download begann am 04.11.2026 nachts).
-    static let importCutoff = ISO8601DateFormatter().date(from: "2026-11-03T00:00:00Z")!
 
     enum Phase: Equatable { case idle, scanning, uploading, done, failed(String) }
 
@@ -29,6 +27,8 @@ final class BackupEngine {
     }
     var wifiOnly = UserDefaults.standard.object(forKey: "backup.wifiOnly") as? Bool ?? true { didSet { save() } }
     var fullLibrary = UserDefaults.standard.bool(forKey: "backup.full") { didSet { save() } }
+    /// Bis hierher ist die Mediathek schon auf dem Server (eigener Import); nil = ganze Mediathek sichern.
+    var importCutoff = UserDefaults.standard.object(forKey: "backup.importCutoff") as? Date { didSet { save() } }
     var lastRun = UserDefaults.standard.object(forKey: "backup.lastRun") as? Date
 
     var phase: Phase = .idle
@@ -52,6 +52,7 @@ final class BackupEngine {
     private func save() {
         let d = UserDefaults.standard
         d.set(enabled, forKey: "backup.enabled"); d.set(wifiOnly, forKey: "backup.wifiOnly"); d.set(fullLibrary, forKey: "backup.full")
+        d.set(importCutoff, forKey: "backup.importCutoff")
     }
 
     // MARK: Start / Hintergrund
@@ -114,7 +115,7 @@ final class BackupEngine {
         opts.includeHiddenAssets = true
         opts.includeAllBurstAssets = true
         opts.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-        if !fullLibrary { opts.predicate = NSPredicate(format: "creationDate >= %@", Self.importCutoff as NSDate) }
+        if !fullLibrary, let cutoff = importCutoff { opts.predicate = NSPredicate(format: "creationDate >= %@", cutoff as NSDate) }
         let result = PHAsset.fetchAssets(with: opts)
         var todo: [PHAsset] = []
         result.enumerateObjects { a, _, _ in
@@ -160,7 +161,7 @@ final class BackupEngine {
         let mainType: PHAssetResourceType = a.mediaType == .video ? .video : .photo
         guard let main = res.first(where: { $0.type == mainType }) else { throw BackupError.noOriginal }
         // Vor dem Import liegt alles schon auf dem Server: nie aus iCloud nachladen, nur Lokales prüfen.
-        let allowNetwork = (a.creationDate ?? .distantPast) >= Self.importCutoff
+        let allowNetwork = importCutoff.map { (a.creationDate ?? .distantPast) >= $0 } ?? true
         let api = ImmichClient.shared
 
         // Live Photo: zuerst das Video, damit das Foto darauf zeigen kann.

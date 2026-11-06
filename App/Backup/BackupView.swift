@@ -36,9 +36,20 @@ struct BackupView: View {
                     Text(String(localized: "Neue Fotos und Videos landen auf deinem eigenen Server – im Hintergrund, wenn das iPhone nachts am Strom hängt, und sobald du die App öffnest. Auf dem iPhone wird nur gelöscht, wenn du unten „Speicher freigeben“ wählst."))
                 }
                 Section {
-                    Toggle(String(localized: "Ganze Mediathek prüfen"), isOn: $engine.fullLibrary)
+                    Toggle(String(localized: "Ältere Fotos sind schon auf dem Server"), isOn: Binding(
+                        get: { engine.importCutoff != nil },
+                        set: { engine.importCutoff = $0 ? Calendar.current.startOfDay(for: .now) : nil }))
+                    if let cutoff = engine.importCutoff {
+                        DatePicker(String(localized: "Übernommen bis"), selection: Binding(get: { cutoff }, set: { engine.importCutoff = $0 }),
+                                   in: ...Date.now, displayedComponents: .date)
+                        Toggle(String(localized: "Ganze Mediathek prüfen"), isOn: $engine.fullLibrary)
+                    }
                 } footer: {
-                    Text(String(localized: "Alles vor dem \(BackupEngine.importCutoff.formatted(.dateTime.day().month(.wide).year().locale(.autoupdatingCurrent))) ist schon aus iCloud übernommen. Eingeschaltet prüft die App auch ältere Fotos – aber nur die, die auf dem iPhone liegen, ohne sie aus iCloud zu laden."))
+                    if let cutoff = engine.importCutoff {
+                        Text(String(localized: "Alles vor dem \(cutoff.formatted(.dateTime.day().month(.wide).year().locale(.autoupdatingCurrent))) ist schon aus iCloud übernommen. Eingeschaltet prüft die App auch ältere Fotos – aber nur die, die auf dem iPhone liegen, ohne sie aus iCloud zu laden."))
+                    } else {
+                        Text(String(localized: "Die App sichert die ganze Mediathek, auch Fotos, die nur in iCloud liegen (sie werden dafür geladen). Hast du ältere Fotos schon anders auf den Server gebracht, z. B. mit icloudpd, schalte das ein: Dann sichert die App nur, was danach dazukommt."))
+                    }
                 }
                 FreeUpSection()
                 OfflineSection()
