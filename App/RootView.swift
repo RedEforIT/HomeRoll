@@ -111,10 +111,86 @@ extension RootView {
     }
 }
 
+private extension View {
+    /// Während ein Foto darüber gezogen wird, nach 0,6 s zum Tab `to` wechseln (Ablegen selbst passiert nicht hier).
+    func springLoaded(to tab: Tab, hovering: Binding<Tab?>) -> some View {
+        modifier(SpringLoad(tab: tab, hovering: hovering))
+    }
+}
+
+private struct SpringLoad: ViewModifier {
+    let tab: Tab
+    @Binding var hovering: Tab?
+    @Environment(AppModel.self) private var app
+    func body(content: Content) -> some View {
+        content
+            .background { GeometryReader { g in Color.clear.preference(key: SpringFrames.self, value: [tab: g.frame(in: .global)]) } }
+            .onPreferenceChange(SpringFrames.self) { f in SpringLoadWindow.shared.frames.merge(f) { $1 } }
+            .background { SpringLoadWindow.Attach() }
+            .onAppear {
+                SpringLoadWindow.shared.onHover = { t in
+                    hovering = t
+                    guard let t else { return }
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(600))
+                        guard hovering == t, app.tab != t else { return }
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        withAnimation(.snappy) { app.tab = t; app.tabsExpanded = false }
+                    }
+                }
+            }
+    }
+}
+
+private struct SpringFrames: PreferenceKey {
+    static let defaultValue: [Tab: CGRect] = [:]
+    static func reduce(value: inout [Tab: CGRect], nextValue: () -> [Tab: CGRect]) { value.merge(nextValue()) { $1 } }
+}
+
+/// Ablegeziel am Fenster: UIKit nimmt es nur, wenn unter dem Finger kein anderes Ziel annimmt (Alben bleiben
+/// Ziele). Liegt der Finger über einem Tab-Knopf, meldet es den Tab – abgelegt wird hier nie.
+@MainActor
+final class SpringLoadWindow: NSObject, UIDropInteractionDelegate {
+    static let shared = SpringLoadWindow()
+    var frames: [Tab: CGRect] = [:]
+    var onHover: (Tab?) -> Void = { _ in }
+    private weak var window: UIWindow?
+    private var current: Tab?
+
+    func attach(to w: UIWindow) {
+        guard window !== w else { return }
+        window = w
+        w.addInteraction(UIDropInteraction(delegate: self))
+    }
+    private func report(_ t: Tab?) { guard t != current else { return }; current = t; onHover(t) }
+
+    nonisolated func dropInteraction(_ i: UIDropInteraction, canHandle s: UIDropSession) -> Bool { s.localDragSession != nil }
+    nonisolated func dropInteraction(_ i: UIDropInteraction, sessionDidUpdate s: UIDropSession) -> UIDropProposal {
+        MainActor.assumeIsolated {
+            guard let w = window else { return }; let p = s.location(in: w)
+            report(frames.first { $0.value.insetBy(dx: -8, dy: -8).contains(p) }?.key)
+        }
+        return UIDropProposal(operation: .cancel)
+    }
+    nonisolated func dropInteraction(_ i: UIDropInteraction, sessionDidExit s: UIDropSession) { MainActor.assumeIsolated { report(nil) } }
+    nonisolated func dropInteraction(_ i: UIDropInteraction, sessionDidEnd s: UIDropSession) { MainActor.assumeIsolated { report(nil) } }
+
+    struct Attach: UIViewRepresentable {
+        func makeUIView(context: Context) -> V { V() }
+        func updateUIView(_ v: V, context: Context) {}
+        final class V: UIView {
+            override func didMoveToWindow() { super.didMoveToWindow(); if let window { SpringLoadWindow.shared.attach(to: window) } }
+        }
+    }
+}
+
 /// Schwebende Glasleiste unten – in der Mediathek mit Jahre/Monate/Alle, sonst Tabs.
 struct BottomBar: View {
     @Environment(AppModel.self) private var app
     @Namespace private var ns
+    /// Federnde Tabs wie bei Apple (UITabBar springLoaded): gezogenes Foto kurz über dem Tab halten → Tab wechselt,
+    /// so landet ein Foto aus der Mediathek mit einem Finger auf einem Album in den Sammlungen.
+    @State private var hovering: Tab?
 
     var body: some View {
         GlassEffectContainer(spacing: 14) {
@@ -129,6 +205,7 @@ struct BottomBar: View {
                     }
                     .glassEffect(.regular.interactive(), in: .circle)
                     .glassEffectID("tab", in: ns)
+                    .springLoaded(to: .collections, hovering: $hovering)
 
                     ScaleSwitcher()
                         .glassEffect(.regular.interactive(), in: .capsule)
@@ -136,6 +213,7 @@ struct BottomBar: View {
                     TabSwitcher()
                         .glassEffect(.regular.interactive(), in: .capsule)
                         .glassEffectID("tab", in: ns)
+                        .springLoaded(to: app.tab == .library ? .collections : .library, hovering: $hovering)
                     Spacer(minLength: 0)
                 }
                 Button { app.showSearch = true } label: {
