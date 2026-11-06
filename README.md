@@ -76,6 +76,12 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 
 Optional server add-ons (see [`server/README.md`](server/README.md)): relevance service (better smart search, face suggestions, sensitive-photo check), categories service (receipts, documents …) and Clean Up (LaMa). The app works without them – those features are then simply hidden or less precise.
 
+## Install without a Mac
+
+1. Download `HomeRoll.ipa` from the [latest release](https://github.com/silentprovider423/HomeRoll/releases/latest).
+2. Install it with [SideStore](https://sidestore.io) or [AltStore](https://altstore.io). A free Apple ID is enough, the app then has to be refreshed every 7 days (SideStore does that on the phone).
+3. Open the app and log in with your Immich server address and your Immich account.
+
 ## Build & install
 
 ```bash
