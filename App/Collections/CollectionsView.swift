@@ -366,6 +366,10 @@ struct CollectionsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                // wie Fotos: von überall ziehen – auf ein Album (AlbumDropTarget) oder in andere Apps
+                .draggable("homeroll-asset:\(a.id)") {
+                    AssetThumb(id: a.id).frame(width: 90, height: 90).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
                 .contextMenu {
                     AssetMenu(assets: [a], style: .context, present: { app.sheet = $0 }) { model.featured.removeAll { $0.id == a.id } }
                     Section {

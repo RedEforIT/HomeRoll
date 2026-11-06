@@ -347,6 +347,9 @@ struct MemoryPlayer: View {
 
     /// Tippen: Rand = Szene vor/zurück (Apple: skipToSegmentWithOffset:byTappingEdge:), Mitte = Steuerung + Pause.
     private func tap(at p: CGPoint, width: CGFloat) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["FOTOS_DIAG_TAP"] != nil { print("DIAG tap", p.x, chrome, ended) }
+        #endif
         if ended { return }
         if chrome { resume(); return }
         if p.x < width * 0.25 { skip(-1) }
