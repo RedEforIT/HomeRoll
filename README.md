@@ -6,6 +6,8 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 
 > **Status:** works and is used daily against Immich v3.3.5 with ~85,000 photos and videos. UI in **English and German** (follows the iPhone language; more translations welcome). Code comments are in German.
 >
+> Built with help from [Claude Code](https://claude.com/claude-code): I did the research (Apple's Photos frameworks analysed with [rea](https://github.com/morluto/rea)), the design decisions and daily testing on my own iPhone, a lot of the Swift was written together with it.
+>
 > Not affiliated with Apple or with Immich/FUTO. "Immich" is a trademark of its owners.
 
 <p align="center">
