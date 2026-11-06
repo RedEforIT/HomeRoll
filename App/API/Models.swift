@@ -280,6 +280,18 @@ enum Fmt {
     static let dayLongMonthYear = make("d MMMM yyyy")              // 26. August 2019
     static let fullDate = make("EEEE d MMMM yyyy")                 // Montag, 26. August 2019
 
+    /// Wie Fotos: „Heute“, „Gestern“, innerhalb einer Woche der Wochentag, sonst `fallback` (Wanduhr-Datum, siehe Asset.date).
+    static func relativeDay(_ d: Date, fallback: DateFormatter = dayLongMonthYear) -> String {
+        let today = Calendar.wall.startOfDay(for: Date().addingTimeInterval(TimeInterval(TimeZone.current.secondsFromGMT())))
+        let diff = Calendar.wall.dateComponents([.day], from: Calendar.wall.startOfDay(for: d), to: today).day ?? 99
+        switch diff {
+        case 0: return String(localized: "Heute")
+        case 1: return String(localized: "Gestern")
+        case 2..<7: return weekday.string(from: d)
+        default: return fallback.string(from: d)
+        }
+    }
+
     static func duration(_ ms: Int?) -> String {
         guard let ms else { return "" }
         let s = ms / 1000

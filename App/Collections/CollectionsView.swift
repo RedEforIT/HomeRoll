@@ -383,14 +383,7 @@ struct CollectionsView: View {
         }
     }
 
-    private func dayLabel(_ d: Date) -> String {
-        let today = Calendar.wall.startOfDay(for: Date().addingTimeInterval(TimeInterval(TimeZone.current.secondsFromGMT())))
-        let diff = Calendar.wall.dateComponents([.day], from: d, to: today).day ?? 99
-        if diff == 0 { return String(localized: "Heute") }
-        if diff == 1 { return String(localized: "Gestern") }
-        if diff < 7 { let f = DateFormatter(); f.locale = .autoupdatingCurrent; f.timeZone = DateParsing.utc; f.dateFormat = "EEEE"; return f.string(from: d) }
-        return Fmt.dayMonthYear.string(from: d)
-    }
+    private func dayLabel(_ d: Date) -> String { Fmt.relativeDay(d, fallback: Fmt.dayMonthYear) }
 
 
     /// Reisen = zusammenhängende Tage außerhalb des Heimatlandes (häufigstes Land).

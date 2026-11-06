@@ -96,7 +96,7 @@ struct ViewerView: View {
             .glassEffect(.regular.interactive(), in: .circle)
             Spacer()
             VStack(spacing: 1) {
-                Text(Fmt.dayLongMonthYear.string(from: a.date)).font(.system(size: 16, weight: .semibold))
+                Text(Fmt.relativeDay(a.date)).font(.system(size: 16, weight: .semibold))
                 Text(Fmt.time.string(from: a.date) + (a.city.map { " · \($0)" } ?? ""))
                     .font(.system(size: 12)).opacity(0.8)
             }
