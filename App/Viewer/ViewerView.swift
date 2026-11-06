@@ -706,6 +706,28 @@ private struct InfoSheet: View {
                                 NavigationLink(value: CollectionRoute.person(PersonRef(id: p.id, name: p.name))) { face(p, p.name) }
                                     .buttonStyle(.plain)
                                     .contextMenu {
+                                        // wie Fotos (REA: PXPhotoKitPersonMakeKeyPhotoActionPerformer)
+                                        Button("Als Titelbild für \(p.name)", systemImage: "person.crop.square") {
+                                            Task {
+                                                do {
+                                                    let api = ImmichClient.shared
+                                                    func fetch() async -> Data? {
+                                                        guard let base = api.personThumbURL(p.id) else { return nil }
+                                                        // eigene Adresse je Abfrage, sonst antwortet der URL-Cache mit dem alten Bild
+                                                        return try? await api.data(base.appending(queryItems: [URLQueryItem(name: "t", value: UUID().uuidString)]))
+                                                    }
+                                                    let before = await fetch()
+                                                    try await api.updatePerson(p.id, ["featureFaceAssetId": asset.id])
+                                                    app.toast(String(localized: "Titelbild festgelegt"))
+                                                    // Server rechnet das Personenbild im Hintergrund neu – erst neu zeigen, wenn es da ist
+                                                    for _ in 0..<20 {
+                                                        try? await Task.sleep(for: .milliseconds(600))
+                                                        if let now = await fetch(), now != before { break }
+                                                    }
+                                                    ImageCache.shared.bumpPerson(p.id)
+                                                } catch { app.toast("Hat nicht geklappt") }
+                                            }
+                                        }
                                         Button("Das ist nicht \(p.name)", systemImage: "person.crop.circle.badge.xmark") {
                                             Task {
                                                 do {

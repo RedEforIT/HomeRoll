@@ -240,6 +240,15 @@ struct AlbumScreen: View {
         Button(String(localized: "Teilen"), systemImage: "square.and.arrow.up") { Task { await ShareService.share(sorted.map(\.id), app: app) } }
             .disabled(sorted.isEmpty)
         Button(String(localized: "Fotos hinzufügen"), systemImage: "plus") { picker = true }
+        // wie Fotos (REA: PXPhotoKitAssetCollectionPlayMovieActionPerformer): Album im Rückblick-Player
+        Button("Als Rückblick abspielen", systemImage: "play.rectangle.on.rectangle") {
+            let picked = MemoryEngine.curate(sorted, max: 60)
+            if let key = info?.albumThumbnailAssetId.flatMap({ id in picked.first { $0.id == id } }) ?? MemoryEngine.keyPhoto(picked) {
+                app.memory = Memory(id: "album-\(ref.id)", title: name, subtitle: MemoryEngine.range(picked), assets: picked,
+                                    key: key, date: picked.last?.date ?? Date())
+            } else { app.toast(String(localized: "Zu wenige Fotos für einen Rückblick")) }
+        }
+        .disabled(sorted.filter(\.isImage).count < 3)
         Button(String(localized: "Karte einblenden"), systemImage: "map") {
             Task {
                 markers = (try? await ImmichClient.shared.albumMarkers(ref.id)) ?? []

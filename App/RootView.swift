@@ -232,4 +232,5 @@ struct BusyBadge: View {
 extension Notification.Name {
     static let scrollToNewest = Notification.Name("scrollToNewest")
     static let openFotosURL = Notification.Name("openFotosURL")
+    static let personThumbChanged = Notification.Name("personThumbChanged")
 }

@@ -944,12 +944,32 @@
         }
       }
     },
+    "Als Rückblick abspielen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play as Memory"
+          }
+        }
+      }
+    },
     "Als Schlüsselfoto festlegen": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Make Key Photo"
+          }
+        }
+      }
+    },
+    "Als Titelbild für %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make Key Photo for %@"
           }
         }
       }
@@ -4865,6 +4885,16 @@
         }
       }
     },
+    "Titelbild festgelegt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key photo set"
+          }
+        }
+      }
+    },
     "Ton %+d · Farbe %+d": {
       "localizations": {
         "de": {
@@ -5517,6 +5547,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add to Favorites"
+          }
+        }
+      }
+    },
+    "Zu wenige Fotos für einen Rückblick": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too few photos for a memory"
           }
         }
       }

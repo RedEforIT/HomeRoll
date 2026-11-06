@@ -60,6 +60,15 @@ final class ImageCache: @unchecked Sendable {
         for s in ["thumbnail", "preview", "fullsize"] { cache.removeObject(forKey: "\(id)-\(s)" as NSString) }
         NotificationCenter.default.post(name: .thumbChanged, object: id)
     }
+    /// Personenbild neu laden (nach „Als Titelbild für …“); URLSession-Cache umgehen über `v`
+    func bumpPerson(_ id: String) {
+        cache.removeObject(forKey: "person-\(id)" as NSString)
+        lock.withLock { personVersion[id, default: 0] += 1 }
+        NotificationCenter.default.post(name: .personThumbChanged, object: id)
+    }
+    func personVersionOf(_ id: String) -> Int { lock.withLock { personVersion[id] ?? 0 } }
+    private var personVersion: [String: Int] = [:]
+
     func set(_ k: String, _ img: UIImage) {
         cache.setObject(img, forKey: k as NSString, cost: Int(img.size.width * img.size.height * img.scale * img.scale * 4))
     }
@@ -228,14 +237,21 @@ final class ThumbPrefetcher {
 struct PersonThumb: View {
     let id: String
     @State private var image: UIImage?
+    @State private var reload = 0
     var body: some View {
         Rectangle().fill(Color(white: 0.15))
             .overlay { if let image { Image(uiImage: image).resizable().scaledToFill() } }
             .clipped()
-            .task(id: id) {
+            .onReceive(NotificationCenter.default.publisher(for: .personThumbChanged)) { n in
+                if n.object as? String == id { reload += 1 }
+            }
+            .task(id: "\(id)-\(reload)") {
                 let key = "person-\(id)"
                 if let c = ImageCache.shared.get(key) { image = c; return }
-                if let url = ImmichClient.shared.personThumbURL(id),
+                // nach neuem Titelbild eine andere Adresse, sonst liefert der URL-Cache das alte Bild
+                let v = ImageCache.shared.personVersionOf(id)
+                if let base = ImmichClient.shared.personThumbURL(id),
+                   case let url = v == 0 ? base : base.appending(queryItems: [URLQueryItem(name: "v", value: String(v))]),
                    let d = try? await ImmichClient.shared.data(url), let i = UIImage(data: d) {
                     ImageCache.shared.set(key, i); image = i; return
                 }
