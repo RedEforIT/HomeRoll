@@ -53,7 +53,7 @@ struct SpatialSceneView: View {
         }
         .overlay(alignment: .topLeading) {
             Button(action: close) {
-                Image(systemName: "xmark").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).frame(width: 46, height: 46)
+                Image(systemName: "xmark").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             .padding(.leading, 16).padding(.top, 8)

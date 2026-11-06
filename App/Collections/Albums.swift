@@ -187,7 +187,7 @@ struct AlbumScreen: View {
                 .foregroundStyle(.white).shadow(color: .black.opacity(0.4), radius: 8)
                 Spacer()
                 Button { app.sheet = .slideshow(list) } label: {
-                    Image(systemName: "play.fill").font(.system(size: 22)).foregroundStyle(.white).frame(width: 56, height: 56)
+                    Image(systemName: "play.fill").font(.system(size: 22)).foregroundStyle(.white).frame(width: 56, height: 56).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
             }
@@ -200,13 +200,13 @@ struct AlbumScreen: View {
     private func topBar(_ list: [Asset]) -> some View {
         HStack(spacing: 12) {
             Button { app.endSelection(); dismiss() } label: {
-                Image(systemName: "chevron.left").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46)
+                Image(systemName: "chevron.left").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             Spacer()
             if app.selecting {
                 Menu { selectionMenu(list) } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46)
+                    Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 .disabled(app.selected.isEmpty)
@@ -215,7 +215,7 @@ struct AlbumScreen: View {
                     .glassEffect(.regular.interactive(), in: .capsule)
             } else {
                 Menu { albumMenu } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46)
+                    Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 if !list.isEmpty {

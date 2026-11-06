@@ -258,6 +258,13 @@ struct CollectionsView: View {
 
     private var memoriesRow: some View {
         row {
+            if memories.items.isEmpty && !memories.settled {
+                // wie Fotos: graue Karten, solange die Rückblicke noch berechnet werden
+                ForEach(0..<2, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 26, style: .continuous).fill(Color(white: 0.12))
+                        .frame(width: side * 2.1, height: side * 2.1)
+                }
+            }
             ForEach(memories.items.prefix(12)) { m in
                 Button { app.memory = m } label: {
                     BigCard(assetID: m.key.id, title: m.title, subtitle: m.subtitle, play: true)
@@ -268,7 +275,7 @@ struct CollectionsView: View {
             }
         }
         .overlay {
-            if memories.items.isEmpty {
+            if memories.items.isEmpty && memories.settled {
                 EmptyCard(icon: "clock.arrow.circlepath", title: String(localized: "Keine Rückblicke verfügbar"),
                           text: String(localized: "Rückblicke erscheinen hier, wenn mehr Fotos und Videos zur Mediathek hinzugefügt werden."))
             }

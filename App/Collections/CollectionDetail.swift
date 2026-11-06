@@ -49,7 +49,7 @@ struct CollectionDetail: View {
                     RecentStore.clear(c); withAnimation(.snappy) { loaded = [] }
                 }
             } label: {
-                Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
+                Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle))
         }
@@ -145,7 +145,7 @@ struct AssetGridScreen: View {
                     .disabled(columns == GridZoom.steps.last)
             }
         } label: {
-            Image(systemName: "arrow.up.arrow.down").font(.system(size: 16, weight: .semibold)).frame(width: 44, height: 44)
+            Image(systemName: "arrow.up.arrow.down").font(.system(size: 16, weight: .semibold)).frame(width: 44, height: 44).contentShape(.rect)
         }
         .glassEffect(.regular.interactive(), in: .circle)
         .accessibilityLabel(String(localized: "Sortieren und Zoomen"))
@@ -289,7 +289,7 @@ struct PersonMenu: View {
                 if on { dismiss() }
             }
         } label: {
-            Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
+            Image(systemName: "ellipsis").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44).contentShape(.rect)
         }
         .glassEffect(.regular.interactive(), in: .circle)
         .alert(person.name.isEmpty ? String(localized: "Name hinzufügen") : String(localized: "Umbenennen"), isPresented: $askName) {
@@ -504,7 +504,7 @@ struct MapScreen: View {
         .overlay(alignment: .top) {
             HStack {
                 Button { dismiss() } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46)
+                    Image(systemName: "chevron.left").font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 Spacer()
@@ -512,7 +512,7 @@ struct MapScreen: View {
                     .padding(.horizontal, 16).frame(height: 40).glassEffect(.regular, in: .capsule)
                 Spacer()
                 Button { satellite.toggle() } label: {
-                    Image(systemName: satellite ? "map" : "globe.europe.africa").font(.system(size: 18)).frame(width: 46, height: 46)
+                    Image(systemName: satellite ? "map" : "globe.europe.africa").font(.system(size: 18)).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
             }

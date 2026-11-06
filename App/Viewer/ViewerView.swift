@@ -175,7 +175,7 @@ struct ViewerView: View {
         GlassEffectContainer {
             HStack(spacing: 12) {
                 Button { Task { await ShareService.share([a.id], app: app) } } label: {
-                    Image(systemName: "square.and.arrow.up").frame(width: 52, height: 52)
+                    Image(systemName: "square.and.arrow.up").frame(width: 52, height: 52).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 Spacer()
@@ -200,7 +200,7 @@ struct ViewerView: View {
                 .glassEffect(.regular.interactive(), in: .capsule)
                 Spacer()
                 Button(role: .destructive) { trash(a) } label: {
-                    Image(systemName: "trash").frame(width: 52, height: 52)
+                    Image(systemName: "trash").frame(width: 52, height: 52).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
             }
@@ -418,7 +418,7 @@ private struct ZoomableImage: View {
                 Button {
                     Task { spatial = await OriginalImages.shared.spatialLayers(asset.id); if spatial == nil { app.toast(String(localized: "Räumliche Szene nicht möglich")) } }
                 } label: {
-                    Image(systemName: "cube.transparent").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white).frame(width: 44, height: 44)
+                    Image(systemName: "cube.transparent").font(.system(size: 17, weight: .semibold)).foregroundStyle(.white).frame(width: 44, height: 44).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 .padding(.trailing, 16).padding(.top, 120)

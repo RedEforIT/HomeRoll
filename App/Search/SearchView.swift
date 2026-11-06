@@ -112,7 +112,7 @@ struct SearchView: View {
     private var searchBar: some View {
         HStack(spacing: 12) {
             Button { app.tab = .collections; dismiss() } label: {
-                Image(systemName: "square.stack.fill").font(.system(size: 20)).foregroundStyle(.white).frame(width: 54, height: 54)
+                Image(systemName: "square.stack.fill").font(.system(size: 20)).foregroundStyle(.white).frame(width: 54, height: 54).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             HStack(spacing: 6) {
@@ -148,7 +148,7 @@ struct SearchView: View {
             .padding(.horizontal, 16).frame(height: 54)
             .glassEffect(.regular.interactive(), in: .capsule)
             Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).frame(width: 54, height: 54)
+                Image(systemName: "xmark").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white).frame(width: 54, height: 54).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
         }
@@ -356,7 +356,7 @@ struct SearchView: View {
     private var selectionBar: some View {
         HStack(spacing: 12) {
             Button { Task { await ShareService.share(Array(selected), app: app) } } label: {
-                Image(systemName: "square.and.arrow.up").frame(width: 54, height: 54)
+                Image(systemName: "square.and.arrow.up").frame(width: 54, height: 54).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             .disabled(selected.isEmpty)

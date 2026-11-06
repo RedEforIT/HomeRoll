@@ -139,6 +139,8 @@ enum TextHeavy {
 final class MemoryCenter {
     static let shared = MemoryCenter()
     private(set) var items: [Memory] = []
+    /// Erster Aufbau für dieses Konto fertig – vorher zeigt die Ansicht Platzhalter statt „Keine Rückblicke“
+    private(set) var settled = false
     private var builtFor = ""
     private var builtAccount = ""
     /// Laufende Nummer des Aufbaus: Nur der neueste darf die Liste ändern. Rückblicke verschiedener Konten
@@ -150,8 +152,9 @@ final class MemoryCenter {
         let all = timeline.allLoaded
         let account = timeline.account
         // anderes Konto: alte Rückblicke sofort weg (sonst zeigt das neue Konto Fotos des vorigen)
-        if account != builtAccount { items = []; builtAccount = account; builtFor = ""; generation += 1 }
+        if account != builtAccount { items = []; settled = false; builtAccount = account; builtFor = ""; generation += 1 }
         let stamp = "\(account)-\(all.count)-\(server.count)-\(MemoryPrefs.shared.custom.count)"
+        if all.isEmpty { settled = true }   // leere Mediathek: dann wirklich „Keine Rückblicke“
         guard force || stamp != builtFor, !all.isEmpty else { return }
         builtFor = stamp
         generation += 1
@@ -182,6 +185,7 @@ final class MemoryCenter {
         guard gen == generation else { return }
         if let early { shown = Self.without(early, shown) }
         items = shown
+        settled = true
         await addBirthdays(skip: skip, prefs: prefs, gen: gen)
         await fixCovers(gen: gen)
         dump("angezeigt")

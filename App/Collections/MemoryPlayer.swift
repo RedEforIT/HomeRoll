@@ -442,7 +442,7 @@ struct MemoryPlayer: View {
                 circle(muted ? "speaker.slash.fill" : "speaker.wave.2.fill", size: 54) { muted.toggle() }
                 circle("music.note.list", size: 54) { mixSheet = true }
                 Button { resume() } label: {
-                    Image(systemName: "play.fill").font(.system(size: 28)).frame(width: 76, height: 76)
+                    Image(systemName: "play.fill").font(.system(size: 28)).frame(width: 76, height: 76).contentShape(.rect)
                 }
                 .glassEffect(.regular.tint(.black.opacity(0.35)).interactive(), in: .circle)
                 circle("square.grid.3x3", size: 54) { grid = true }

@@ -215,7 +215,7 @@ struct EditorView: View {
 
     private func circle(_ icon: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46)
+            Image(systemName: icon).font(.system(size: 18, weight: .semibold)).frame(width: 46, height: 46).contentShape(.rect)
         }
         .glassEffect(.regular.interactive(), in: .circle)
     }

@@ -12,7 +12,7 @@ struct SelectionBar: View {
     var body: some View {
         HStack(spacing: 12) {
             Button { Task { await ShareService.share(ids, app: app) } } label: {
-                Image(systemName: "square.and.arrow.up").frame(width: 58, height: 58)
+                Image(systemName: "square.and.arrow.up").frame(width: 58, height: 58).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             .disabled(ids.isEmpty)
@@ -21,7 +21,7 @@ struct SelectionBar: View {
                 .frame(maxWidth: .infinity)
                 .shadow(color: .black.opacity(0.5), radius: 6)
             Button { confirmDelete = true } label: {
-                Image(systemName: "trash").frame(width: 58, height: 58)
+                Image(systemName: "trash").frame(width: 58, height: 58).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
             .disabled(ids.isEmpty)

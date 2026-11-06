@@ -386,7 +386,7 @@ struct ScreenHeader: View {
             Spacer()
             if let menu { menu }
             Button { dismiss() } label: {
-                Image(systemName: "xmark").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44)
+                Image(systemName: "xmark").font(.system(size: 17, weight: .semibold)).frame(width: 44, height: 44).contentShape(.rect)
             }
             .glassEffect(.regular.interactive(), in: .circle)
         }

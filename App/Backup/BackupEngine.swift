@@ -46,7 +46,8 @@ final class BackupEngine {
     private var state: [String: Entry] = [:]
     private var stateUser = ""
 
-    struct Entry: Codable { var remote: String; var edited: String? }
+    /// `tagged`: Kategorie-Tags (Bildschirmfotos, Panoramen …) sind sicher auf dem Server; nil = noch nachholen.
+    struct Entry: Codable { var remote: String; var edited: String?; var tagged: Bool? }
 
     private func save() {
         let d = UserDefaults.standard
@@ -120,8 +121,8 @@ final class BackupEngine {
             if a.mediaType == .image || a.mediaType == .video, self.state[a.localIdentifier] == nil { todo.append(a) }
         }
         total = todo.count
+        await repairTags(api)
         phase = .uploading
-        var tags: [String: [String]] = [:]
 
         for a in todo {
             if Task.isCancelled { break }
@@ -131,9 +132,14 @@ final class BackupEngine {
                     let (id, edited, isNew) = r
                     state[a.localIdentifier] = Entry(remote: id, edited: edited)
                     if isNew { uploaded += 1 } else { duplicates += 1 }
-                    for t in Self.tags(for: a) { tags[t, default: []].append(id) }
-                    if let edited { tags["Kategorie/Bearbeitet", default: []].append(edited) }
                     saveState()
+                    // Tags sofort setzen, nicht erst am Ende des Laufs: wird die App vorher beendet,
+                    // stünde das Bildschirmfoto sonst in der Mediathek, aber nie unter „Bildschirmfotos“.
+                    var ok = true
+                    for (t, ids) in Self.tagPlan(a, Entry(remote: id, edited: edited)) {
+                        do { try await api.tag(ids, with: t) } catch { ok = false }
+                    }
+                    if ok { state[a.localIdentifier]?.tagged = true; saveState() }
                 }
             } catch is CancellationError {
                 break
@@ -143,7 +149,6 @@ final class BackupEngine {
             }
             finished += 1
         }
-        for (t, ids) in tags { try? await api.tag(ids, with: t) }
         current = ""
         lastRun = Date(); UserDefaults.standard.set(lastRun, forKey: "backup.lastRun")
         phase = Task.isCancelled ? .idle : .done
@@ -229,6 +234,35 @@ final class BackupEngine {
         var sha = Insecure.SHA1()
         while let chunk = try h.read(upToCount: 4 << 20), !chunk.isEmpty { sha.update(data: chunk) }
         return sha.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Tag → Server-IDs für ein gesichertes Objekt (Original und ggf. bearbeitete Fassung).
+    private static func tagPlan(_ a: PHAsset, _ e: Entry) -> [String: [String]] {
+        var plan: [String: [String]] = [:]
+        for t in tags(for: a) { plan[t, default: []].append(e.remote) }
+        if let edited = e.edited { plan["Kategorie/Bearbeitet", default: []].append(edited) }
+        return plan
+    }
+
+    /// Holt Tags nach, die frühere Läufe nicht mehr setzen konnten (App beendet, Netz weg).
+    /// Gesammelt je Tag in Paketen, damit auch viele Objekte nur wenige Anfragen kosten.
+    private func repairTags(_ api: ImmichClient) async {
+        let open = state.filter { $0.value.tagged != true }
+        guard !open.isEmpty else { return }
+        var plan: [String: [String]] = [:]
+        let found = PHAsset.fetchAssets(withLocalIdentifiers: Array(open.keys), options: nil)
+        found.enumerateObjects { a, _, _ in
+            guard let e = open[a.localIdentifier] else { return }
+            for (t, ids) in Self.tagPlan(a, e) { plan[t, default: []] += ids }
+        }
+        for (t, ids) in plan {
+            for i in stride(from: 0, to: ids.count, by: 500) {
+                guard (try? await api.tag(Array(ids[i..<min(i + 500, ids.count)]), with: t)) != nil else { return }
+            }
+        }
+        // auch vom iPhone Gelöschte abhaken: deren Art kennt nur noch der Server
+        for id in open.keys { state[id]?.tagged = true }
+        saveState()
     }
 
     /// Was nur das iPhone weiß – gleiche Tag-Namen wie Server-Kategorien und iCloud-Import.
