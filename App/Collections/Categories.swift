@@ -116,8 +116,7 @@ enum CategoryLoader {
             let since = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-30 * 86400))
             return await s(["createdAt": ["gte": since]], 1000)
         case .recentlyViewed, .recentlyShared:
-            let byID = Dictionary(timeline.allLoaded.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-            return RecentStore.ids(c).compactMap { byID[$0] }
+            return RecentStore.ids(c).compactMap { timeline.asset($0) }
         case .duplicates, .map, .largeVideos: return []
         case .pets:
             // Immich erkennt keine Tiere als Personen → KI-Bildsuche + Relevanz-Prüfung (wie Apples „Haustiere“)

@@ -61,8 +61,7 @@ struct SearchView: View {
 
     private var recentQueries: [String] { recentRaw.split(separator: "\n").map(String.init) }
     private var recentViewed: [Asset] {
-        let byID = Dictionary(timeline.allLoaded.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        return RecentStore.ids(.recentlyViewed).prefix(60).compactMap { byID[$0] }
+        RecentStore.ids(.recentlyViewed).prefix(60).compactMap { timeline.asset($0) }
     }
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
     private var active: Bool { !trimmed.isEmpty || !tokens.isEmpty }

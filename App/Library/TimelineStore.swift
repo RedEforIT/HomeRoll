@@ -65,6 +65,20 @@ final class TimelineStore {
 
     var totalCount: Int { buckets.reduce(0) { $0 + $1.count } }
 
+    /// Objekt per Kennung über das Raster-Verzeichnis – `allLoaded.filter` ging bei 85 000 Objekten jedes Mal alle
+    /// durch (gemessen ~25 ms für „Zuletzt angesehen“ je Tastendruck, ~7 ms je Auswahl-Änderung).
+    func asset(_ id: String) -> Asset? {
+        guard let i = gridIndex[id], i < gridCells.count, case .asset(let a, _) = gridCells[i] else { return nil }
+        return a
+    }
+    /// Mehrere Objekte in Zeitleisten-Reihenfolge (älteste zuerst, wie `allLoaded.filter`), ohne Doppelte.
+    func assets(_ ids: some Sequence<String>) -> [Asset] {
+        Set(ids.compactMap { gridIndex[$0] }).sorted().compactMap { i in
+            guard i < gridCells.count, case .asset(let a, _) = gridCells[i] else { return nil }
+            return a
+        }
+    }
+
     var years: [Int] {
         Array(Set(buckets.map { Calendar.wall.component(.year, from: $0.monthDate) })).sorted()
     }

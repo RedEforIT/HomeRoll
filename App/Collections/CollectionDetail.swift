@@ -581,8 +581,7 @@ struct MapScreen: View {
     }
 
     private func assets(for ids: [String]) -> [Asset] {
-        let set = Set(ids)
-        return timeline.allLoaded.filter { set.contains($0.id) }
+        timeline.assets(ids)
     }
 }
 

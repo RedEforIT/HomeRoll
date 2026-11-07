@@ -43,7 +43,7 @@ struct SelectionBar: View {
 enum SelectionText {
     /// „Objekte auswählen“, „1 Foto ausgewählt“, „2 Videos ausgewählt“, „3 Objekte ausgewählt“
     @MainActor static func make(_ sel: Set<String>, _ t: TimelineStore) -> String {
-        make(t.allLoaded.filter { sel.contains($0.id) }, count: sel.count)
+        make(t.assets(sel), count: sel.count)
     }
     static func make(_ list: [Asset], count n: Int) -> String {
         if n == 0 { return String(localized: "Objekte auswählen") }
@@ -53,7 +53,7 @@ enum SelectionText {
     }
     /// „1 Foto löschen“, „3 Videos löschen“ …
     @MainActor static func deleteTitle(_ sel: Set<String>, _ t: TimelineStore) -> String {
-        let list = t.allLoaded.filter { sel.contains($0.id) }, n = sel.count
+        let list = t.assets(sel), n = sel.count
         if !list.isEmpty && list.allSatisfy(\.isImage) { return n == 1 ? String(localized: "1 Foto löschen") : String(localized: "\(n) Fotos löschen") }
         if !list.isEmpty && list.allSatisfy(\.isVideo) { return n == 1 ? String(localized: "1 Video löschen") : String(localized: "\(n) Videos löschen") }
         return n == 1 ? String(localized: "1 Objekt löschen") : String(localized: "\(n) Objekte löschen")
@@ -65,7 +65,7 @@ struct SelectionMenuButton: View {
     @Environment(AppModel.self) private var app
     @Environment(TimelineStore.self) private var timeline
     var body: some View {
-        let assets = timeline.allLoaded.filter { app.selected.contains($0.id) }
+        let assets = timeline.assets(app.selected)
         Menu {
             AssetMenu(assets: assets, style: .selection, present: { app.sheet = $0 }) {
                 withAnimation(.snappy) { app.endSelection() }
