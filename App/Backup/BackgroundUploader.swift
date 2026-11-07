@@ -18,6 +18,7 @@ final class BackgroundUploader: NSObject, URLSessionDataDelegate, @unchecked Sen
         var kind: String            // "main" | "live" | "edited"
         var body: String            // Pfad des Multipart-Rumpfs (danach löschen)
         var localDate: String?      // Videos/Bildschirmfotos: Aufnahmezeit mit Zeitzone (Immich zeigt sonst UTC)
+        var checksum: String?       // SHA1 – falls die Antwort leer ankommt, findet der Server das Objekt darüber
     }
 
     private let lock = NSLock()
@@ -76,14 +77,25 @@ final class BackgroundUploader: NSObject, URLSessionDataDelegate, @unchecked Sen
         let (c, data) = lock.withLock { (waiting.removeValue(forKey: id), received.removeValue(forKey: id) ?? Data()) }
         let meta = task.taskDescription.flatMap { try? JSONDecoder().decode(Meta.self, from: Data($0.utf8)) }
         if let meta { try? FileManager.default.removeItem(atPath: meta.body) }
-        let result: Result<ImmichClient.UploadResult, Error> = {
-            if let error { return .failure(error) }
-            do { return .success(try ImmichClient.shared.uploadResult(data, task.response)) } catch { return .failure(error) }
-        }()
-        if let c { c.resume(with: result); return }
-        // Niemand wartet mehr (App war weg): Ergebnis ins Backup-Gedächtnis übernehmen
-        guard let meta, case .success(let r) = result else { return }
-        Task { @MainActor in await BackupEngine.shared.adopt(r, meta: meta) }
+        let status = (task.response as? HTTPURLResponse)?.statusCode ?? 0
+        Task {
+            var result: Result<ImmichClient.UploadResult, Error>
+            if let error { result = .failure(error) }
+            else {
+                do { result = .success(try ImmichClient.shared.uploadResult(data, task.response)) }
+                catch { result = .failure(error) }
+                // Angekommen (2xx), aber Antwort leer: kommt bei der Hintergrund-Übertragung vor, wenn die App gerade
+                // eingefroren war (07.11.2026, 3 Fotos). Dann die ID über die Prüfsumme beim Server erfragen.
+                if case .failure = result, (200..<300).contains(status), let m = meta, let sum = m.checksum,
+                   let id = try? await ImmichClient.shared.bulkUploadCheck(id: m.localID, checksum: sum) {
+                    result = .success(ImmichClient.UploadResult(id: id, status: "created"))
+                }
+            }
+            if let c { c.resume(with: result); return }
+            // Niemand wartet mehr (App war weg): Ergebnis ins Backup-Gedächtnis übernehmen
+            guard let meta, case .success(let r) = result else { return }
+            await BackupEngine.shared.adopt(r, meta: meta)
+        }
     }
 
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {

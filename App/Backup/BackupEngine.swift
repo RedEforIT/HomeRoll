@@ -268,7 +268,8 @@ final class BackupEngine {
                                         fields: fields, checksum: sha1, expensive: !wifiOnly, body: body)
         } catch { try? FileManager.default.removeItem(at: body); throw error }
         try? FileManager.default.removeItem(at: file)   // Platz sparen: ab hier zählt nur noch der Rumpf
-        let meta = BackgroundUploader.Meta(user: stateUser, localID: a.localIdentifier, kind: kind, body: body.path, localDate: localDate)
+        let meta = BackgroundUploader.Meta(user: stateUser, localID: a.localIdentifier, kind: kind, body: body.path,
+                                           localDate: localDate, checksum: sha1)
         let r = try await BackgroundUploader.shared.upload(req, body: body, meta: meta)
         return (r.id, r.status != "duplicate")
     }
