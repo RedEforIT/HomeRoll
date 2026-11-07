@@ -63,11 +63,22 @@ final class VideoState {
                   let s = await SlowMo.detect(av), let comp = try? await s.composition(av) else { return }
             guard let self, self.id == want, let p = self.player else { return }
             let resume = self.playing
-            p.replaceCurrentItem(with: SlowMo.item(comp))
+            let original = p.currentItem
+            let slow = SlowMo.item(comp)
+            p.replaceCurrentItem(with: slow)
             self.slowMo = s
             self.duration = (try? await comp.load(.duration).seconds) ?? self.duration
             self.observeEnd(p)
             if resume { p.play() }
+            // Scheitert die Zeitlupen-Wiedergabe (z. B. unbekannte Tonspur), lieber normal abspielen als schwarz bleiben
+            for _ in 0..<50 where slow.status == .unknown { try? await Task.sleep(for: .milliseconds(100)) }
+            guard slow.status == .failed, self.id == want, p.currentItem === slow, let original else { return }
+            PerfLog.mark("Zeitlupe fehlgeschlagen, normale Wiedergabe: \(slow.error?.localizedDescription ?? "")")
+            p.replaceCurrentItem(with: AVPlayerItem(asset: original.asset))
+            self.slowMo = nil
+            self.duration = (try? await original.asset.load(.duration).seconds) ?? self.duration
+            self.observeEnd(p)
+            if self.playing { p.play() }
         }
     }
 

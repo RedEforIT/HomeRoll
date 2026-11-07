@@ -8,6 +8,12 @@ final class ImageCache: @unchecked Sendable {
     private let cache = NSCache<NSString, UIImage>()
     init() { cache.totalCostLimit = 200 << 20 }
     func get(_ k: String) -> UIImage? { cache.object(forKey: k as NSString) }
+    /// Abmelden: alle Bilder und Fassungen des Kontos vergessen
+    func purge() {
+        cache.removeAllObjects()
+        lock.withLock { hashes = [:]; missing = []; versions = [:] }
+        UserDefaults.standard.removeObject(forKey: "thumbVersions")
+    }
     /// Fingerabdruck der Server-Vorschau (thumbhash). Ändert er sich (Bearbeitung, auch von anderem Gerät),
     /// bekommt die Vorschau eine neue Adresse → Zwischenspeicher wird umgangen.
     /// Fehlt er, hat der Server noch keine Vorschau gerechnet → `missing`: dann gar nicht erst anfragen (404),

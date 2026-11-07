@@ -54,7 +54,13 @@ struct SlowMo: Equatable {
             t?.preferredTransform = try await track.load(.preferredTransform)
         }
         if audio {
-            for track in try await asset.loadTracks(withMediaType: .audio) {
+            // Nur die eingeschaltete Tonspur: iPhone 16+ legt zusätzlich räumlichen Ton (APAC, 4 Kanäle) als
+            // ausgeschaltete Zweitspur ab – mit in der Komposition blieb das Bild schwarz (GitHub-Issue #1)
+            var tracks: [AVAssetTrack] = []
+            for track in try await asset.loadTracks(withMediaType: .audio) where (try? await track.load(.isEnabled)) != false {
+                if (try? await track.load(.isPlayable)) != false { tracks.append(track) }
+            }
+            for track in tracks.prefix(1) {
                 let t = comp.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
                 try t?.insertTimeRange(src, of: track, at: .zero)
             }

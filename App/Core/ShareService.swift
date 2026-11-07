@@ -14,7 +14,7 @@ enum ShareService {
         for (n, id) in ids.enumerated() {
             app.busy = ids.count > 1 ? String(localized: "Wird vorbereitet … \(n + 1) von \(ids.count)") : String(localized: "Wird vorbereitet …")
             guard let url = api.originalURL(id), let data = try? await api.data(url) else { continue }
-            let name = (try? await api.asset(id))?.originalFileName ?? "\(id).jpg"
+            let name = safeFilename((try? await api.asset(id))?.originalFileName ?? "", fallback: "\(id).jpg")
             var file = dir.appendingPathComponent(name)
             if FileManager.default.fileExists(atPath: file.path) { file = dir.appendingPathComponent("\(n)-\(name)") }
             if (try? data.write(to: file)) != nil { files.append(file) }

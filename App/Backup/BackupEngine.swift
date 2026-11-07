@@ -31,6 +31,21 @@ final class BackupEngine {
     /// Bis hierher ist die Mediathek schon auf dem Server (eigener Import); nil = ganze Mediathek sichern.
     var importCutoff = UserDefaults.standard.object(forKey: "backup.importCutoff") as? Date { didSet { save() } }
     var lastRun = UserDefaults.standard.object(forKey: "backup.lastRun") as? Date
+    /// Für welchen Server der Nutzer dem Backup zugestimmt hat (GitHub-Issue #11): nichts wird hochgeladen, bevor er
+    /// einmal „Backup einschalten“ gewählt hat, und nach einem Serverwechsel wird erneut gefragt.
+    private(set) var consentedServer = UserDefaults.standard.string(forKey: "backup.consentedServer")
+    var needsConsent: Bool {
+        guard enabled, !hardOff, let s = ImmichClient.shared.baseURL?.absoluteString else { return false }
+        // wer schon gesichert hat (ältere Fassung), muss nicht nochmal zustimmen
+        if consentedServer == nil, lastRun != nil { consentedServer = s; UserDefaults.standard.set(s, forKey: "backup.consentedServer") }
+        return consentedServer != s
+    }
+    func consent(_ yes: Bool) {
+        consentedServer = ImmichClient.shared.baseURL?.absoluteString
+        UserDefaults.standard.set(consentedServer, forKey: "backup.consentedServer")
+        enabled = yes
+        if yes { start() }
+    }
     /// Pausiert bis (wie iCloud-Fotos „Pausieren“: einen Tag lang, auch nachts im Hintergrund); nil = läuft.
     private(set) var pausedUntil = UserDefaults.standard.object(forKey: "backup.pausedUntil") as? Date
     var paused: Bool { pausedUntil.map { $0 > Date() } ?? false }
@@ -98,7 +113,7 @@ final class BackupEngine {
 
     /// Im Vordergrund: höchstens alle 10 Minuten automatisch.
     func runIfDue() {
-        guard enabled, !paused, !running, Date().timeIntervalSince(lastRun ?? .distantPast) > 600 else { return }
+        guard enabled, !paused, !running, !needsConsent, Date().timeIntervalSince(lastRun ?? .distantPast) > 600 else { return }
         start()
     }
 
@@ -146,7 +161,7 @@ final class BackupEngine {
     // MARK: Ablauf
 
     func run() async {
-        guard !running, !hardOff, !paused else { return }
+        guard !running, !hardOff, !paused, !needsConsent else { return }
         problems = []; total = 0; finished = 0; uploaded = 0; duplicates = 0; failed = 0; current = ""
         phase = .scanning
         let auth = await PHPhotoLibrary.requestAuthorization(for: .readWrite)

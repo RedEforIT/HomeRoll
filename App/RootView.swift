@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
+    @State private var backupConsent = false
     @Environment(AppModel.self) private var app
     @Environment(TimelineStore.self) private var timeline
     @Namespace private var zoom
@@ -26,6 +27,7 @@ struct RootView: View {
         }
         .overlay(alignment: .top) { VStack { BusyBadge(); ToastBadge() } }
         .actionSheets($app.sheet)
+        .sheet(isPresented: Binding(get: { backupConsent }, set: { if !$0 { backupConsent = false } })) { BackupConsentView() }
         .task {
             if timeline.buckets.isEmpty { await timeline.showCached() }
             var reloaded = false
@@ -33,6 +35,10 @@ struct RootView: View {
                 app.userID = me.id; app.userName = me.name; reloaded = await timeline.setUser(me.id)
             }
             if !reloaded { await timeline.reload() }
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["FOTOS_BACKUP_NOW"] != nil, BackupEngine.shared.needsConsent { BackupEngine.shared.consent(true) }
+            #endif
+            if BackupEngine.shared.needsConsent { backupConsent = true }
             BackupEngine.shared.runIfDue()
             WidgetFeeder.syncAccess()
             OfflineSync.shared.timeline = timeline

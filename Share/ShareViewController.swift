@@ -94,7 +94,7 @@ struct Uploader {
         var head = ""
         for (k, v) in fields.sorted(by: { $0.key < $1.key }) { head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"\(k)\"\r\n\r\n\(v)\r\n" }
         let mime = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
-        head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"assetData\"; filename=\"\(name)\"\r\nContent-Type: \(mime)\r\n\r\n"
+        head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"assetData\"; filename=\"\(safeFilename(name))\"\r\nContent-Type: \(mime)\r\n\r\n"
         try? out.write(contentsOf: Data(head.utf8))
         try? src.forEachChunk { try? out.write(contentsOf: $0) }
         try? out.write(contentsOf: Data("\r\n--\(boundary)--\r\n".utf8)); try? out.close(); try? src.close()

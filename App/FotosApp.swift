@@ -74,7 +74,16 @@ final class AppModel {
     var loggedIn = ImmichClient.shared.isLoggedIn
     /// Abmelden (Konto-Menü, oder „Server nicht erreichbar“ in der Mediathek → anderen Server wählen)
     func signOut(_ timeline: TimelineStore) {
-        ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear(); loggedIn = false
+        ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear()
+        // alles vom Konto vom Gerät löschen: Offline-Vorschauen, Bild-Speicher, Widget-Bilder (GitHub-Issue #8)
+        OfflineSync.shared.stop(); OfflineStore.shared.clear(); ImageCache.shared.purge()
+        if let w = WidgetSnapshot.folder { try? FileManager.default.removeItem(at: w) }
+        // Liste heikler Fotos (IDs) des Kontos
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        for f in (try? FileManager.default.contentsOfDirectory(atPath: support.path)) ?? [] where f.hasPrefix("heikel-") {
+            try? FileManager.default.removeItem(at: support.appendingPathComponent(f))
+        }
+        loggedIn = false
     }
     var tab: Tab = .library
     /// Backup-Fenster (aus der Mediathek-Fußzeile)
