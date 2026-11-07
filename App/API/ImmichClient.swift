@@ -246,9 +246,15 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
 
     /// Metadaten-Suche mit dem neuen Filter-Objekt (v3.2+), blättert über `nextCursor` bis `size`.
     @MainActor func search(filter: [String: Any], size: Int = 250, order: String = "desc") async throws -> [AssetDTO] {
+        try await searchPage(filter: filter, size: size, order: order).items
+    }
+
+    /// Wie `search`, gibt aber den Cursor für die nächste Seite zurück (nil = alles geholt) – für „Mehr laden“.
+    @MainActor func searchPage(filter: [String: Any], size: Int, cursor start: String? = nil,
+                               order: String = "desc") async throws -> (items: [AssetDTO], next: String?) {
         let filter = Self.visible(filter)
         var out: [AssetDTO] = []
-        var cursor: String?
+        var cursor = start
         repeat {
             var body: [String: Any] = ["filter": filter, "size": min(1000, size - out.count), "withExif": true,
                                        "orderBy": ["field": "fileCreatedAt", "direction": order]]
@@ -257,7 +263,7 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
             out += r.assets.items
             cursor = r.assets.nextCursor
         } while cursor != nil && out.count < size
-        return out
+        return (out, cursor)
     }
 
     /// Ohne eigene Sichtbarkeit nur die Mediathek: Immich liefert sonst auch die Videoteile der Live Photos

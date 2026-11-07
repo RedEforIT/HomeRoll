@@ -254,7 +254,9 @@ struct AllGrid: View {
                   onToggle: { app.toggle($0) },
                   onSelect: { app.selected = $0 },
                   menu: { a in AssetMenuUIKit.context(a, app: app, timeline: timeline) },
-                  autoplay: app.autoplay)
+                  // nicht hinter der Einzelansicht oder in anderen Tabs weiterspielen (Akku, Leitung fürs Video vorn)
+                  autoplay: app.autoplay && app.tab == .library && app.viewer == nil && app.memory == nil,
+                  showsScrollIndicator: true)
             .ignoresSafeArea()
             .overlay {
                 // Quelle des Zoom-Übergangs: unsichtbar über der Kachel (UIKit-Kacheln können selbst keine sein)

@@ -128,6 +128,7 @@ final class TimelineStore {
         // Erster Start: angezeigt wird schon dieses Konto → nur speichern, nicht neu aufbauen.
         if first { await reload(); return true }
         generation += 1
+        loadAllTask?.cancel(); loadAllTask = nil
         buckets = []; data = [:]; restored = false
         await rebuildNow()
         await reload()
@@ -256,19 +257,35 @@ final class TimelineStore {
     }
 
     /// Alles laden (für Sammlungen, Reisen, Medienarten).
+    /// Mehrere Aufrufer (Sammlungen, Suche, Offline …) teilen sich einen Durchlauf: sonst übersprang der zweite die
+    /// gerade ladenden Monate (inFlight) und rechnete mit einer halben Mediathek weiter. Idee aus dem Fork vands2013.
     func loadAll() async {
+        // läuft schon einer: mitwarten (ein abgebrochener alter nach Kontowechsel endet sofort → dann selbst laden)
+        while let running = loadAllTask { await running.value; if loadAllTask == running { break } }
         guard buckets.contains(where: { bucket($0.timeBucket).assets == nil }) else { return }
-        let t = Date(); defer { PerfLog.mark(String(format: "Alles geladen in %.1f s, %d Objekte", Date().timeIntervalSince(t), allLoaded.count)) }
-        await withTaskGroup(of: Void.self) { g in
-            var running = 0
-            for b in buckets where bucket(b.timeBucket).assets == nil {
-                if running >= 6 { await g.next(); running -= 1 }
-                g.addTask { await self.load(b.timeBucket) }
-                running += 1
+        let gen = generation
+        let task = Task { @MainActor in
+            let t = Date(); defer { PerfLog.mark(String(format: "Alles geladen in %.1f s, %d Objekte", Date().timeIntervalSince(t), allLoaded.count)) }
+            await withTaskGroup(of: Void.self) { g in
+                var running = 0
+                for b in buckets where bucket(b.timeBucket).assets == nil {
+                    guard gen == generation else { break }
+                    if running >= 6 { await g.next(); running -= 1 }
+                    g.addTask { await self.load(b.timeBucket) }
+                    running += 1
+                }
             }
+            // Monate, die schon jemand anderes lädt (Raster), hat load() übersprungen → kurz auf sie warten
+            for _ in 0..<200 where gen == generation && buckets.contains(where: { bucket($0.timeBucket).assets == nil && inFlight.contains($0.timeBucket) }) {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            if gen == generation { await rebuildNow() }
         }
-        await rebuildNow()
+        loadAllTask = task
+        await task.value
+        if loadAllTask == task { loadAllTask = nil }
     }
+    @ObservationIgnored private var loadAllTask: Task<Void, Never>?
 
     /// Höchstens alle 0,8 s neu bündeln, solange noch Monate eintreffen.
     private func scheduleRebuild() {
@@ -336,6 +353,7 @@ final class TimelineStore {
         if let d = cacheDir { try? FileManager.default.removeItem(at: d) }
         user = ""; UserDefaults.standard.removeObject(forKey: "timeline.user")
         generation += 1
+        loadAllTask?.cancel(); loadAllTask = nil
         buckets = []; data = [:]; restored = false
         allLoaded = []; gridCells = []; gridIndex = [:]; version += 1
     }

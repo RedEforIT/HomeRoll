@@ -340,6 +340,8 @@ struct PhotoGrid: UIViewRepresentable {
     var autoplay = true
     /// Neueste oben (Sammlungen): beim Öffnen oben statt beim Neuesten unten beginnen
     var startAtTop = false
+    /// Normale iOS-Scrollleiste: lässt sich greifen und ziehen → schnell durch große Mediatheken (Idee: Fork vands2013)
+    var showsScrollIndicator = false
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -347,7 +349,7 @@ struct PhotoGrid: UIViewRepresentable {
         let layout = GridLayout()
         let v = GridCollectionView(frame: .zero, collectionViewLayout: layout)
         v.backgroundColor = .clear
-        v.showsVerticalScrollIndicator = false
+        v.showsVerticalScrollIndicator = showsScrollIndicator
         v.contentInsetAdjustmentBehavior = .never
         v.alwaysBounceVertical = true
         let c = context.coordinator
@@ -388,9 +390,11 @@ struct PhotoGrid: UIViewRepresentable {
         let old: PhotoGrid = c.parent
         c.parent = self
         controller.view = v
+        if old.autoplay != autoplay { c.updateAutoplay() }
         let bottom = 96 + (v.window?.safeAreaInsets.bottom ?? 34)
         if v.contentInset.top != topInset || v.contentInset.bottom != bottom {
             v.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: bottom, right: 0)
+            v.verticalScrollIndicatorInsets = v.contentInset
         }
         let sameIDs = old.items.count == items.count && old.items.first?.id == items.first?.id && old.items.last?.id == items.last?.id
         if columns != c.columns {

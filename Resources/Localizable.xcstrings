@@ -6121,6 +6121,16 @@
           }
         }
       }
+    },
+    "Mehr laden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load More"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

@@ -44,6 +44,7 @@ struct SearchView: View {
     @State private var searching = false
     @State private var result = SearchResult()
     @State private var resultKey = ""
+    @State private var loadingMore = false
     @State private var cities: [AssetDTO] = []
     @State private var people: [PersonDTO] = []
     @State private var countries: [String] = []
@@ -318,6 +319,13 @@ struct SearchView: View {
                     if !result.text.isEmpty { heading(String(localized: "Weitere Fotos")) }
                     grid(result.photos, all: photos)
                 }
+                if resultKey == key, result.next != nil {
+                    Button { Task { await loadMore() } } label: {
+                        if loadingMore { ProgressView().tint(.white) }
+                        else { Text(String(localized: "Mehr laden")).font(.headline) }
+                    }
+                    .buttonStyle(.glass).disabled(loadingMore).padding(.vertical, 16).frame(maxWidth: .infinity)
+                }
                 if photos.isEmpty && resultKey == key && !searching {
                     ContentUnavailableView(String(localized: "Keine Treffer"), systemImage: "magnifyingglass",
                                            description: Text(String(localized: "Probier einen anderen Begriff oder entferne ein Kärtchen.")))
@@ -444,9 +452,22 @@ struct SearchView: View {
             } else {
                 r.photos = r.photos.filter { near.contains($0.id) }; r.text = r.text.filter { near.contains($0.id) }
             }
+            r.next = nil   // Umkreis wird hier auf dem iPhone gefiltert – Nachladen kennt ihn nicht
         }
         guard k == key else { return }   // inzwischen weitergetippt
         result = r; resultKey = k
+    }
+
+    /// Nächste Seite einer großen Filtersuche anhängen (Idee „Load more“ aus dem Fork vands2013).
+    private func loadMore() async {
+        guard let cursor = result.next, !loadingMore else { return }
+        let k = key
+        loadingMore = true; defer { loadingMore = false }
+        guard let page = try? await ImmichClient.shared.searchPage(filter: result.filter, size: 2000, cursor: cursor),
+              k == key, result.next == cursor else { return }
+        let have = Set(result.photos.map(\.id))
+        result.photos += page.items.map(\.asset).filter { !have.contains($0.id) }
+        result.next = page.next
     }
 }
 
@@ -454,6 +475,9 @@ struct SearchResult {
     var labels: [String] = []
     var text: [Asset] = []     // Treffer über Texterkennung
     var photos: [Asset] = []   // KI-Suche bzw. reine Filter
+    /// Reine Filtersuche mit mehr Treffern als eine Seite (z. B. eine Person mit 5000 Fotos): Cursor + Filter fürs Nachladen
+    var next: String?
+    var filter: [String: Any] = [:]
 }
 
 /// Zerlegt die Eingabe in feste Filter + Freitext.
@@ -559,7 +583,9 @@ struct SearchPlan {
         let api = ImmichClient.shared
         var r = SearchResult(labels: labels)
         if freeText.isEmpty {
-            r.photos = ((try? await api.search(filter: filter, size: 2000)) ?? []).map(\.asset)
+            let page = try? await api.searchPage(filter: filter, size: 2000)
+            r.photos = (page?.items ?? []).map(\.asset)
+            r.next = page?.next; r.filter = filter
             return r
         }
         var ocrFilter = filter; ocrFilter["ocr"] = ["matches": freeText]
