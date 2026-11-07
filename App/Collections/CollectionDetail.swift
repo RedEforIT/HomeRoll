@@ -548,8 +548,9 @@ struct MapScreen: View {
     /// Start wie Apple: um den Ort mit den meisten Fotos, nicht die ganze Welt.
     private var startRegion: MKCoordinateRegion {
         let cell = Dictionary(grouping: markers) { "\(Int($0.lat))/\(Int($0.lon))" }.max { $0.value.count < $1.value.count }?.value ?? []
-        let c = cell.isEmpty ? CLLocationCoordinate2D(latitude: 48.7, longitude: 9.65)
-            : CLLocationCoordinate2D(latitude: cell.map(\.lat).reduce(0, +) / Double(cell.count), longitude: cell.map(\.lon).reduce(0, +) / Double(cell.count))
+        // ohne Orte: Weltkarte statt eines festen Ortes
+        guard !cell.isEmpty else { return MKCoordinateRegion(center: .init(latitude: 20, longitude: 0), span: .init(latitudeDelta: 120, longitudeDelta: 120)) }
+        let c = CLLocationCoordinate2D(latitude: cell.map(\.lat).reduce(0, +) / Double(cell.count), longitude: cell.map(\.lon).reduce(0, +) / Double(cell.count))
         return MKCoordinateRegion(center: c, span: MKCoordinateSpan(latitudeDelta: 6, longitudeDelta: 6))
     }
 

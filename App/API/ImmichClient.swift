@@ -1,6 +1,8 @@
 import AVFoundation
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import UniformTypeIdentifiers
 
 enum APIError: LocalizedError {
@@ -31,6 +33,8 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     }()
 
     let decoder = JSONDecoder()
+    /// Mac: API-Antworten nie aus dem Zwischenspeicher (Immich schickt nur ETag → sonst veraltete Alben/Infos).
+    nonisolated(unsafe) static var freshAPI = false
 
     override init() {
         super.init()
@@ -55,6 +59,13 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     }
 
     var isLoggedIn: Bool { baseURL != nil && token != nil }
+
+    /// Mac-App mit mehreren Konten: gespeichertes Konto aktiv schalten (Token kommt aus dem Speicher je Konto).
+    func activate(server: URL, token: String) {
+        baseURL = server
+        self.token = token
+        videoLock.withLock { videoFallback = [:]; realtimeHLS = nil }
+    }
 
     // MARK: Anmeldung
 
@@ -153,6 +164,7 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
              body: Data? = nil, auth: Bool = true) async throws -> Data {
         var req = auth ? try authorized(try url(path, query: query)) : URLRequest(url: try url(path, query: query))
         req.httpMethod = method
+        if Self.freshAPI { req.cachePolicy = .reloadIgnoringLocalCacheData }
         if let body {
             req.httpBody = body
             req.setValue("application/json", forHTTPHeaderField: "Content-Type")

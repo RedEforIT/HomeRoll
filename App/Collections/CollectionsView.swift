@@ -571,9 +571,11 @@ struct MapCard: View {
     private func snapshot() async -> UIImage? {
         // Mittelpunkt = Ort mit den meisten Fotos (meist Zuhause), kleiner Ausschnitt wie bei Apple
         let home = Dictionary(grouping: markers) { "\(Int($0.lat))/\(Int($0.lon))" }.max { $0.value.count < $1.value.count }?.value.first
-        let center = CLLocationCoordinate2D(latitude: home?.lat ?? 48.70, longitude: home?.lon ?? 9.65)
+        // ohne Orte: Weltkarte statt eines festen Ortes
+        let center = CLLocationCoordinate2D(latitude: home?.lat ?? 20, longitude: home?.lon ?? 0)
         let o = MKMapSnapshotter.Options()
-        o.region = MKCoordinateRegion(center: center, span: .init(latitudeDelta: 1.2, longitudeDelta: 1.2))
+        let d = home == nil ? 120.0 : 1.2
+        o.region = MKCoordinateRegion(center: center, span: .init(latitudeDelta: d, longitudeDelta: d))
         o.size = CGSize(width: 128, height: 176)
         o.traitCollection = UITraitCollection(userInterfaceStyle: .dark)
         o.pointOfInterestFilter = .excludingAll

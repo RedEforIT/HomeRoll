@@ -73,6 +73,26 @@ enum PhotoStyle: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+/// Farbbereiche der selektiven Farbe (wie IPXSelectiveColorBrickController); Rohwerte stehen in gesicherten Bearbeitungen.
+enum SelectiveHue: String, CaseIterable, Identifiable {
+    case red, orange, yellow, green, cyan, blue, purple, magenta
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .red: String(localized: "Rot"); case .orange: String(localized: "Orange"); case .yellow: String(localized: "Gelb")
+        case .green: String(localized: "Grün"); case .cyan: String(localized: "Cyan"); case .blue: String(localized: "Blau")
+        case .purple: String(localized: "Lila"); case .magenta: String(localized: "Magenta")
+        }
+    }
+    /// Mitte auf dem Farbkreis (0…1)
+    var center: Double {
+        switch self {
+        case .red: 0; case .orange: 0.083; case .yellow: 0.166; case .green: 0.333
+        case .cyan: 0.5; case .blue: 0.633; case .purple: 0.75; case .magenta: 0.875
+        }
+    }
+}
+
 struct CleanStroke: Equatable, Codable, Hashable {
     var points: [CGPoint]
     var width: Double
@@ -128,10 +148,18 @@ struct EditState: Equatable, Codable {
     var keyFrame: Double?
     /// Bereinigen: gewischte Striche (Punkte 0…1 im unbearbeiteten Bild, Breite relativ zur Bildbreite)
     var cleanup: [CleanStroke] = []
+    /// Profi-Werkzeuge der Mac-App (Apple macOS: Kurven, Tonwerte, Selektive Farbe); das iPhone rechnet sie mit.
+    /// Kurven: Ausgabe (0…1) an den Eingaben 0, ¼, ½, ¾, 1 – nil = Diagonale.
+    var curves: [Double]?
+    /// Tonwerte: Schwarzpunkt, Mitteltöne (Gamma 0,25…4, 1 = neutral), Weißpunkt – nil = aus.
+    var levels: [Double]?
+    /// Selektive Farbe je Farbbereich (SelectiveHue.rawValue): Farbton −1…1, Sättigung −1…1, Helligkeit −1…1.
+    var selective: [String: [Double]] = [:]
 
     enum CodingKeys: String, CodingKey {
         case values, auto, autoValues, autoStrength, disabled, filter, angle, mirrored, crop, straighten, perspV, perspH
         case filterAmount, style, styleTone, styleColor, stylePalette, aperture, markup, markupCanvas, keyFrame, cleanup
+        case curves, levels, selective
     }
     init() {}
     init(from d: Decoder) throws {
@@ -158,6 +186,9 @@ struct EditState: Equatable, Codable {
         markupCanvas = try c.decodeIfPresent(CGSize.self, forKey: .markupCanvas)
         keyFrame = try c.decodeIfPresent(Double.self, forKey: .keyFrame)
         cleanup = try c.decodeIfPresent([CleanStroke].self, forKey: .cleanup) ?? []
+        curves = try c.decodeIfPresent([Double].self, forKey: .curves)
+        levels = try c.decodeIfPresent([Double].self, forKey: .levels)
+        selective = try c.decodeIfPresent([String: [Double]].self, forKey: .selective) ?? [:]
     }
 
     /// „Änderungen einsetzen“ übernimmt nur Licht/Farbe/Filter, nicht den Zuschnitt (wie Apple).
@@ -165,13 +196,19 @@ struct EditState: Equatable, Codable {
         values = o.values; auto = o.auto; autoValues = o.autoValues; autoStrength = o.autoStrength
         disabled = o.disabled; filter = o.filter; filterAmount = o.filterAmount
         style = o.style; styleTone = o.styleTone; styleColor = o.styleColor; stylePalette = o.stylePalette
+        curves = o.curves; levels = o.levels; selective = o.selective
     }
 
     static let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
     /// Alles, was die App selbst rechnen muss (Server kann nur Zuschnitt + 90°-Drehung + Spiegeln).
     var hasColor: Bool {
         filter != .original || Adjust.allCases.contains { abs(value($0)) > 0.005 } || straighten != 0 || perspV != 0 || perspH != 0
-            || hasStyle || aperture != nil || markup != nil || keyFrame != nil || !cleanup.isEmpty
+            || hasStyle || aperture != nil || markup != nil || keyFrame != nil || !cleanup.isEmpty || hasPro
+    }
+    var hasPro: Bool {
+        (curves.map { c in zip(c, [0, 0.25, 0.5, 0.75, 1]).contains { abs($0 - $1) > 0.003 } } ?? false)
+            || (levels.map { abs($0[0]) > 0.003 || abs($0[1] - 1) > 0.003 || abs($0[2] - 1) > 0.003 } ?? false)
+            || selective.values.contains { $0.contains { abs($0) > 0.003 } }
     }
     var hasStyle: Bool { style != .standard || styleTone != 0 || styleColor != 0 }
     var hasGeometry: Bool { angle % 360 != 0 || mirrored || !crop.isApprox(Self.unit) }
@@ -244,8 +281,82 @@ final class EditRenderer: @unchecked Sendable {
         img = img.transformed(by: CGAffineTransform(translationX: -img.extent.minX, y: -img.extent.minY))
         img = geometry(img, s)
         img = color(img, s)
+        if s.hasPro { img = pro(img, s) }
         if crop, let m = s.markup, let size = s.markupCanvas { img = markup(img, data: m, canvas: size) }
         return img
+    }
+
+    /// Tonwerte → Kurven → Selektive Farbe (Reihenfolge wie die Bricks in Fotos auf dem Mac).
+    func pro(_ input: CIImage, _ s: EditState) -> CIImage {
+        var img = input
+        if let l = s.levels, l.count == 3 {
+            let black = min(l[0], l[2] - 0.02), span = max(0.02, l[2] - black)
+            img = img.applyingFilter("CIColorMatrix", parameters: [
+                "inputRVector": CIVector(x: 1 / span, y: 0, z: 0, w: 0), "inputGVector": CIVector(x: 0, y: 1 / span, z: 0, w: 0),
+                "inputBVector": CIVector(x: 0, y: 0, z: 1 / span, w: 0),
+                "inputBiasVector": CIVector(x: -black / span, y: -black / span, z: -black / span, w: 0)])
+                .applyingFilter("CIColorClamp")
+            if abs(l[1] - 1) > 0.003 { img = img.applyingFilter("CIGammaAdjust", parameters: ["inputPower": 1 / max(0.25, min(4, l[1]))]) }
+        }
+        if let c = s.curves, c.count == 5 {
+            img = img.applyingFilter("CIToneCurve", parameters: [
+                "inputPoint0": CIVector(x: 0, y: c[0]), "inputPoint1": CIVector(x: 0.25, y: c[1]), "inputPoint2": CIVector(x: 0.5, y: c[2]),
+                "inputPoint3": CIVector(x: 0.75, y: c[3]), "inputPoint4": CIVector(x: 1, y: c[4])])
+        }
+        if s.selective.values.contains(where: { $0.contains { abs($0) > 0.003 } }), let cube = selectiveCube(s.selective) {
+            img = img.applyingFilter("CIColorCubeWithColorSpace", parameters: [
+                "inputCubeDimension": 32, "inputCubeData": cube, "inputColorSpace": CGColorSpace(name: CGColorSpace.sRGB)!])
+        }
+        return img
+    }
+
+    /// Farbwürfel für die selektive Farbe (gemerkt je Einstellung, ≈ 5 ms beim ersten Mal).
+    private var cubeCache: ([String: [Double]], Data)?
+    private let cubeLock = NSLock()
+    private func selectiveCube(_ sel: [String: [Double]]) -> Data? {
+        if let c = cubeLock.withLock({ cubeCache }), c.0 == sel { return c.1 }
+        let n = 32
+        var out = [Float](repeating: 0, count: n * n * n * 4)
+        for b in 0..<n { for g in 0..<n { for r in 0..<n {
+            var (h, sat, v) = Self.hsv(Double(r) / Double(n - 1), Double(g) / Double(n - 1), Double(b) / Double(n - 1))
+            var dh = 0.0, ds = 0.0, dv = 0.0
+            for hue in SelectiveHue.allCases {
+                guard let p = sel[hue.rawValue], p.count == 3 else { continue }
+                // weiche Gewichtung um die Mitte des Farbbereichs (±1/8 Farbkreis), graue Töne bleiben unberührt
+                var d = abs(h - hue.center); d = min(d, 1 - d)
+                let w = max(0, 1 - d / 0.11) * min(1, sat * 4)
+                dh += w * p[0] * 0.08; ds += w * p[1]; dv += w * p[2] * 0.5
+            }
+            h = (h + dh + 1).truncatingRemainder(dividingBy: 1)
+            sat = min(1, max(0, sat * (1 + ds)))
+            v = min(1, max(0, v * (1 + dv)))
+            let (rr, gg, bb) = Self.rgb(h, sat, v)
+            let i = ((b * n + g) * n + r) * 4
+            out[i] = Float(rr); out[i + 1] = Float(gg); out[i + 2] = Float(bb); out[i + 3] = 1
+        } } }
+        let d = out.withUnsafeBufferPointer { Data(buffer: $0) }
+        cubeLock.withLock { cubeCache = (sel, d) }
+        return d
+    }
+
+    static func hsv(_ r: Double, _ g: Double, _ b: Double) -> (Double, Double, Double) {
+        let mx = max(r, g, b), mn = min(r, g, b), d = mx - mn
+        var h = 0.0
+        if d > 0 {
+            if mx == r { h = ((g - b) / d).truncatingRemainder(dividingBy: 6) }
+            else if mx == g { h = (b - r) / d + 2 } else { h = (r - g) / d + 4 }
+            h /= 6; if h < 0 { h += 1 }
+        }
+        return (h, mx == 0 ? 0 : d / mx, mx)
+    }
+
+    static func rgb(_ h: Double, _ s: Double, _ v: Double) -> (Double, Double, Double) {
+        let i = Int(h * 6) % 6, f = h * 6 - Double(Int(h * 6))
+        let p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s)
+        switch i {
+        case 0: return (v, t, p); case 1: return (q, v, p); case 2: return (p, v, t)
+        case 3: return (p, q, v); case 4: return (t, p, v); default: return (v, p, q)
+        }
     }
 
     /// Porträt-Unschärfe wie Apples Blende (PIDepthAdjustment): kleinere ƒ-Zahl = stärkere Unschärfe.
@@ -345,7 +456,11 @@ final class EditRenderer: @unchecked Sendable {
         let e = img.extent
         let scale = e.width / canvas.width
         let ui = drawing.image(from: CGRect(origin: .zero, size: canvas), scale: scale)
+        #if canImport(UIKit)
         guard let cg = ui.cgImage else { return img }
+        #else
+        guard let cg = ui.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return img }   // Mac: NSImage
+        #endif
         let over = CIImage(cgImage: cg).transformed(by: CGAffineTransform(scaleX: e.width / CGFloat(cg.width), y: e.height / CGFloat(cg.height)))
             .transformed(by: CGAffineTransform(translationX: e.minX, y: e.minY))
         return over.composited(over: img).cropped(to: e)
@@ -573,6 +688,7 @@ enum EditClipboard {
         c.values = s.values; c.auto = s.auto; c.autoStrength = s.autoStrength; c.disabled = s.disabled
         c.filter = s.filter; c.filterAmount = s.filterAmount
         c.style = s.style; c.styleTone = s.styleTone; c.styleColor = s.styleColor; c.stylePalette = s.stylePalette
+        c.curves = s.curves; c.levels = s.levels; c.selective = s.selective
         guard c.hasColor || c.auto else { return false }
         UserDefaults.standard.set(try? JSONEncoder().encode(c), forKey: key)
         return true
@@ -583,6 +699,7 @@ enum EditClipboard {
         s.values = c.values; s.auto = c.auto; s.autoStrength = c.autoStrength; s.disabled = c.disabled
         s.filter = c.filter; s.filterAmount = c.filterAmount
         s.style = c.style; s.styleTone = c.styleTone; s.styleColor = c.styleColor; s.stylePalette = c.stylePalette
+        s.curves = c.curves; s.levels = c.levels; s.selective = c.selective
         s.autoValues = c.auto ? autoValues() : [:]
     }
 

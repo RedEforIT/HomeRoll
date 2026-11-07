@@ -1,10 +1,19 @@
+#if canImport(UIKit)
 import UIKit
+#else
+import CoreGraphics
+import Foundation
+#endif
 
 /// ThumbHash → kleines unscharfes Vorschaubild (≤ 32 px), wie Apple Fotos es vor dem echten Bild zeigt.
 /// Immich liefert den Hash (base64, ~25 Byte) in jeder Zeitleisten-Antwort mit; fehlt er, hat der Server
 /// noch keine Vorschau gerechnet. Verfahren: Evan Wallace, „ThumbHash“ (MIT), hier nach Swift übertragen.
 enum ThumbHash {
-    static func image(base64: String) -> UIImage? {
+    #if canImport(UIKit)
+    static func image(base64: String) -> UIImage? { cgImage(base64: base64).map { UIImage(cgImage: $0) } }
+    #endif
+
+    static func cgImage(base64: String) -> CGImage? {
         guard let data = Data(base64Encoded: base64), data.count >= 5,
               let (w, h, rgba) = decode([UInt8](data)) else { return nil }
         let provider = CGDataProvider(data: Data(rgba) as CFData)!
@@ -13,7 +22,7 @@ enum ThumbHash {
                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
                                provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent)
         else { return nil }
-        return UIImage(cgImage: cg)
+        return cg
     }
 
     static func decode(_ hash: [UInt8]) -> (Int, Int, [UInt8])? {
