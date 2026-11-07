@@ -494,7 +494,11 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"assetData\"; filename=\"\(filename)\"\r\nContent-Type: \(mime)\r\n\r\n"
         try out.write(contentsOf: Data(head.utf8))
         let src = try FileHandle(forReadingFrom: file)
-        while let chunk = try src.read(upToCount: 4 << 20), !chunk.isEmpty { try out.write(contentsOf: chunk) }
+        // stückweise mit autoreleasepool (sonst bleibt die ganze Datei im Speicher, siehe Shared/FileChunks.swift)
+        while try autoreleasepool(invoking: {
+            guard let chunk = try src.read(upToCount: 4 << 20), !chunk.isEmpty else { return false }
+            try out.write(contentsOf: chunk); return true
+        }) {}
         try src.close()
         try out.write(contentsOf: Data("\r\n--\(boundary)--\r\n".utf8))
         try out.close()

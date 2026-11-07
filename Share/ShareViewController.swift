@@ -96,7 +96,7 @@ struct Uploader {
         let mime = UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
         head += "--\(boundary)\r\nContent-Disposition: form-data; name=\"assetData\"; filename=\"\(name)\"\r\nContent-Type: \(mime)\r\n\r\n"
         try? out.write(contentsOf: Data(head.utf8))
-        while let c = try? src.read(upToCount: 4 << 20), !c.isEmpty { try? out.write(contentsOf: c) }
+        try? src.forEachChunk { try? out.write(contentsOf: $0) }
         try? out.write(contentsOf: Data("\r\n--\(boundary)--\r\n".utf8)); try? out.close(); try? src.close()
         var req = URLRequest(url: base.appendingPathComponent("api/assets"))
         req.httpMethod = "POST"; req.timeoutInterval = 600
@@ -112,7 +112,7 @@ struct Uploader {
     private func sha1(_ url: URL) throws -> String {
         var h = Insecure.SHA1()
         let f = try FileHandle(forReadingFrom: url)
-        while let c = try f.read(upToCount: 4 << 20), !c.isEmpty { h.update(data: c) }
+        try f.forEachChunk { h.update(data: $0) }
         try f.close()
         return h.finalize().map { String(format: "%02x", $0) }.joined()
     }

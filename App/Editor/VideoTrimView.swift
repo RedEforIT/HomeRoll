@@ -306,7 +306,7 @@ struct VideoTrimView: View {
     private static func sha1(_ url: URL) throws -> String {
         var h = Insecure.SHA1()
         let f = try FileHandle(forReadingFrom: url)
-        while let c = try f.read(upToCount: 4 << 20), !c.isEmpty { h.update(data: c) }
+        try f.forEachChunk { h.update(data: $0) }
         try f.close()
         return h.finalize().map { String(format: "%02x", $0) }.joined()
     }

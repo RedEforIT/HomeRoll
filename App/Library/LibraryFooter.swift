@@ -9,6 +9,8 @@ struct LibraryFooter: View {
     let onOpenBackup: () -> Void
     @State private var stats: (images: Int, videos: Int)?
     private var backup: BackupEngine { .shared }
+    /// Zeitangaben in der Sprache der App, nicht des Systems (sonst „15 hours ago“ in deutscher Oberfläche)
+    private let appLocale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? "en")
 
     var body: some View {
         VStack(spacing: 7) {
@@ -22,7 +24,13 @@ struct LibraryFooter: View {
         .onTapGesture(perform: onOpenBackup)
         .glassEffect(.regular, in: .rect(cornerRadius: 24))
         .padding(.horizontal, 16)
-        .task(id: refresh) { stats = await ImmichClient.shared.statistics() }
+        .task(id: refresh) {
+            // beim Start ist das Netz manchmal noch nicht da → wiederholen, bis der Server antwortet
+            while !Task.isCancelled {
+                if let s = await ImmichClient.shared.statistics() { stats = s; return }
+                try? await Task.sleep(for: .seconds(stats == nil ? 3 : 30))
+            }
+        }
         .accessibilityElement(children: .contain)
     }
 
@@ -55,7 +63,7 @@ struct LibraryFooter: View {
                     line(String(localized: "\(n.formatted()) Objekte noch nicht gesichert"),
                          action: String(localized: "Jetzt sichern")) { backup.start() }
                 } else if let last = backup.lastRun {
-                    line(String(localized: "Auf deinem Server gesichert · \(last.formatted(.relative(presentation: .named)))"), action: nil) {}
+                    line(String(localized: "Auf deinem Server gesichert · \(last.formatted(.relative(presentation: .named).locale(appLocale)))"), action: nil) {}
                 }
             }
         }

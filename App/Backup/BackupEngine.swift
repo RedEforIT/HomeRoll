@@ -177,6 +177,8 @@ final class BackupEngine {
                 }
             } catch is CancellationError {
                 break
+            } catch let e as URLError where e.code == .cancelled {
+                break   // Pausieren bricht den laufenden Upload ab – kein Fehler, das Objekt kommt beim nächsten Lauf dran
             } catch {
                 failed += 1
                 problems.append("\(current): \(error.localizedDescription)")
@@ -267,7 +269,7 @@ final class BackupEngine {
         let h = try FileHandle(forReadingFrom: url)
         defer { try? h.close() }
         var sha = Insecure.SHA1()
-        while let chunk = try h.read(upToCount: 4 << 20), !chunk.isEmpty { sha.update(data: chunk) }
+        try h.forEachChunk { sha.update(data: $0) }
         return sha.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
