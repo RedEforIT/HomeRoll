@@ -6357,6 +6357,16 @@
           }
         }
       }
+    },
+    "%@ Objekte werden im Hintergrund gesichert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backing Up %@ Items in the Background"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

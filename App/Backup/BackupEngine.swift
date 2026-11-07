@@ -49,6 +49,8 @@ final class BackupEngine {
     /// Objekte, die (noch) nicht gesichert werden konnten – mit Grund.
     var problems: [String] = []
     var running: Bool { phase == .scanning || phase == .uploading }
+    /// Übertragungen aus einer früheren Sitzung, die iOS noch im Hintergrund erledigt
+    var background = 0
 
     private var task: Task<Void, Never>?
     private var state: [String: Entry] = [:]
@@ -116,6 +118,7 @@ final class BackupEngine {
         pausedUntil = Date(timeIntervalSinceNow: seconds)
         UserDefaults.standard.set(pausedUntil, forKey: "backup.pausedUntil")
         cancel()
+        BackgroundUploader.shared.cancelAll()
     }
 
     #if DEBUG
@@ -163,11 +166,14 @@ final class BackupEngine {
             if a.mediaType == .image || a.mediaType == .video, self.state[a.localIdentifier] == nil { todo.append(a) }
         }
         total = todo.count
+        let inFlight = await BackgroundUploader.shared.activeLocalIDs()
+        background = inFlight.count
         await repairTags(api)
         phase = .uploading
 
         for a in todo {
             if Task.isCancelled { break }
+            if inFlight.contains(a.localIdentifier) { continue }   // läuft schon im Hintergrund (frühere Sitzung)
             current = PHAssetResource.assetResources(for: a).first?.originalFilename ?? ""
             do {
                 if let r = try await backup(a) {
@@ -211,18 +217,18 @@ final class BackupEngine {
         // Live Photo: zuerst das Video, damit das Foto darauf zeigen kann.
         var liveID: String?
         if a.mediaSubtypes.contains(.photoLive), let pv = res.first(where: { $0.type == .pairedVideo }) {
-            liveID = try await send(pv, of: a, network: allowNetwork, extra: [:]).id
+            liveID = try await send(pv, of: a, network: allowNetwork, extra: [:], kind: "live").id
         }
         var extra: [String: String] = [:]
         if let liveID { extra["livePhotoVideoId"] = liveID }
         if a.isFavorite { extra["isFavorite"] = "true" }
         if a.isHidden { extra["visibility"] = "archive" }
         if a.mediaType == .video { extra["duration"] = String(Int(a.duration * 1000)) }
-        let r = try await send(main, of: a, network: allowNetwork, extra: extra)
         // Bildschirmfotos (PNG) und Videos tragen keine Zeitzone → Immich zeigte sonst UTC (wie beim iCloud-Import).
-        if r.isNew, a.mediaType == .video || a.mediaSubtypes.contains(.photoScreenshot) || main.uniformTypeIdentifier == "public.png" {
-            try? await api.update([r.id], ["dateTimeOriginal": Self.localISO(a.creationDate ?? Date())])
-        }
+        let needsLocal = a.mediaType == .video || a.mediaSubtypes.contains(.photoScreenshot) || main.uniformTypeIdentifier == "public.png"
+        let local = needsLocal ? Self.localISO(a.creationDate ?? Date()) : nil
+        let r = try await send(main, of: a, network: allowNetwork, extra: extra, localDate: local)
+        if r.isNew, let local { try? await api.update([r.id], ["dateTimeOriginal": local]) }
 
         // Bearbeitung aus Fotos: gerenderte Fassung oben auf den Stapel (nur für neue Objekte).
         var editedID: String?
@@ -232,7 +238,7 @@ final class BackupEngine {
             if a.isHidden { e["visibility"] = "archive" }
             let stem = (main.originalFilename as NSString).deletingPathExtension
             let ext = (full.originalFilename as NSString).pathExtension
-            let er = try await send(full, of: a, network: true, extra: e, name: "\(stem)_bearbeitet.\(ext.isEmpty ? "jpg" : ext)")
+            let er = try await send(full, of: a, network: true, extra: e, name: "\(stem)_bearbeitet.\(ext.isEmpty ? "jpg" : ext)", kind: "edited")
             if er.isNew { try? await api.createStack([er.id, r.id]) }
             editedID = er.id
         }
@@ -241,7 +247,7 @@ final class BackupEngine {
 
     /// Datei in den Zwischenordner holen, Prüfsumme bilden, beim Server nachfragen, ggf. hochladen.
     private func send(_ res: PHAssetResource, of a: PHAsset, network: Bool, extra: [String: String],
-                      name: String? = nil) async throws -> (id: String, isNew: Bool) {
+                      name: String? = nil, kind: String = "main", localDate: String? = nil) async throws -> (id: String, isNew: Bool) {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("backup-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: file) }
         try await Self.write(res, to: file, network: network)
@@ -252,8 +258,18 @@ final class BackupEngine {
         let modified = ISO8601DateFormatter().string(from: a.modificationDate ?? a.creationDate ?? Date())
         var fields = ["fileCreatedAt": created, "fileModifiedAt": modified, "filename": name ?? res.originalFilename]
         fields.merge(extra) { $1 }
-        let r = try await api.uploadAsset(file: file, filename: name ?? res.originalFilename, uti: res.uniformTypeIdentifier,
-                                          fields: fields, checksum: sha1, expensive: !wifiOnly)
+        // Rumpf an einem festen Ort: die Hintergrund-Übertragung braucht ihn, auch wenn die App inzwischen weg ist
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("backup-uploads")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let body = dir.appendingPathComponent(UUID().uuidString)
+        let req: URLRequest
+        do {
+            req = try api.prepareUpload(file: file, filename: name ?? res.originalFilename, uti: res.uniformTypeIdentifier,
+                                        fields: fields, checksum: sha1, expensive: !wifiOnly, body: body)
+        } catch { try? FileManager.default.removeItem(at: body); throw error }
+        try? FileManager.default.removeItem(at: file)   // Platz sparen: ab hier zählt nur noch der Rumpf
+        let meta = BackgroundUploader.Meta(user: stateUser, localID: a.localIdentifier, kind: kind, body: body.path, localDate: localDate)
+        let r = try await BackgroundUploader.shared.upload(req, body: body, meta: meta)
         return (r.id, r.status != "duplicate")
     }
 
@@ -322,6 +338,24 @@ final class BackupEngine {
         if s.contains(.videoCinematic) { t.append("Kino") }
         if a.burstIdentifier != nil { t.append("Serien") }
         return t.map { "Kategorie/\($0)" }
+    }
+
+    /// Ergebnis einer Hintergrund-Übertragung, deren Ende die App nicht mehr selbst erlebt hat (beendet/eingefroren).
+    /// Nur das Hauptobjekt ohne bearbeitete Fassung wird direkt übernommen; alles andere holt der nächste Lauf nach
+    /// (der Server erkennt die Datei dann an der Prüfsumme, es wird nichts doppelt geladen).
+    func adopt(_ r: ImmichClient.UploadResult, meta: BackgroundUploader.Meta) async {
+        PerfLog.mark("Hintergrund-Übertragung fertig (\(meta.kind))")
+        background = max(0, background - 1)
+        guard meta.kind == "main", !meta.user.isEmpty else { return }
+        loadState(user: meta.user)
+        guard state[meta.localID] == nil else { return }
+        let a = PHAsset.fetchAssets(withLocalIdentifiers: [meta.localID], options: nil).firstObject
+        let edited = a.map { PHAssetResource.assetResources(for: $0).contains { $0.type == .fullSizePhoto || $0.type == .fullSizeVideo } } ?? false
+        guard !edited else { return }
+        state[meta.localID] = Entry(remote: r.id, edited: nil)   // Tags holt repairTags beim nächsten Lauf nach
+        saveState()
+        if r.status != "duplicate", let d = meta.localDate { try? await ImmichClient.shared.update([r.id], ["dateTimeOriginal": d]) }
+        if let p = storedPending, p > 0 { storedPending = p - 1; UserDefaults.standard.set(p - 1, forKey: "backup.pending") }
     }
 
     // MARK: Gedächtnis (je Server-Nutzer, damit Test- und echtes Konto getrennt bleiben)

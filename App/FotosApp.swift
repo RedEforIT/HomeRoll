@@ -3,11 +3,13 @@ import SwiftUI
 
 @main
 struct FotosApp: App {
+    @UIApplicationDelegateAdaptor(HomeRollAppDelegate.self) private var delegate
     @State private var app = AppModel()
     @State private var timeline = TimelineStore()
 
     init() {
         BackupEngine.registerBackgroundTask()
+        BackgroundUploader.shared.reconnect()   // Ergebnisse von Übertragungen aus früheren Sitzungen abholen
         PerfLog.start()
     }
 

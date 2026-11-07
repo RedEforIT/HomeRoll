@@ -481,10 +481,19 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     /// Lädt eine Datei vom Datenträger hoch (Multipart wird als Datei gebaut – auch große Videos ohne viel Speicher).
     func uploadAsset(file: URL, filename: String, uti: String, fields: [String: String],
                      checksum: String, expensive: Bool) async throws -> UploadResult {
-        let boundary = "fotos-\(UUID().uuidString)"
         let body = FileManager.default.temporaryDirectory.appendingPathComponent("upload-\(UUID().uuidString)")
-        FileManager.default.createFile(atPath: body.path, contents: nil)
         defer { try? FileManager.default.removeItem(at: body) }
+        let req = try prepareUpload(file: file, filename: filename, uti: uti, fields: fields, checksum: checksum,
+                                    expensive: expensive, body: body)
+        let (d, resp) = try await session.upload(for: req, fromFile: body)
+        return try uploadResult(d, resp)
+    }
+
+    /// Multipart-Rumpf nach `body` schreiben und die passende Anfrage bauen (auch für die Hintergrund-Übertragung).
+    func prepareUpload(file: URL, filename: String, uti: String, fields: [String: String],
+                       checksum: String, expensive: Bool, body: URL) throws -> URLRequest {
+        let boundary = "fotos-\(UUID().uuidString)"
+        FileManager.default.createFile(atPath: body.path, contents: nil)
         let out = try FileHandle(forWritingTo: body)
         var head = ""
         for (k, v) in fields.sorted(by: { $0.key < $1.key }) {
@@ -510,7 +519,10 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         req.timeoutInterval = 600
         req.allowsExpensiveNetworkAccess = expensive
         req.allowsConstrainedNetworkAccess = expensive
-        let (d, resp) = try await session.upload(for: req, fromFile: body)
+        return req
+    }
+
+    func uploadResult(_ d: Data, _ resp: URLResponse?) throws -> UploadResult {
         guard let h = resp as? HTTPURLResponse, (200..<300).contains(h.statusCode) else {
             throw APIError.http((resp as? HTTPURLResponse)?.statusCode ?? 0, String(data: d, encoding: .utf8)?.prefix(200).description ?? "")
         }
