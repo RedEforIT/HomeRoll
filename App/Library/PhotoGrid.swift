@@ -202,7 +202,7 @@ final class AssetCell: UICollectionViewCell {
     func startPlayback(videoID: String) {
         guard !playing, let url = ImmichClient.shared.videoURL(videoID) else { return }
         playing = true
-        let av = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ImmichClient.shared.authHeaders])
+        let av = ImmichClient.shared.avAsset(url)
         let p = AVQueuePlayer(); p.isMuted = true; p.preventsDisplaySleepDuringVideoPlayback = false
         looper = AVPlayerLooper(player: p, templateItem: AVPlayerItem(asset: av))
         let l = AVPlayerLayer(player: p); l.videoGravity = .resizeAspectFill; l.frame = contentView.bounds

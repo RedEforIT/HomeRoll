@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import UIKit
 import UniformTypeIdentifiers
@@ -87,6 +88,17 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     }
 
     var authHeaders: [String: String] { token.map { ["Authorization": "Bearer \($0)"] } ?? [:] }
+
+    /// Video vom Server für AVFoundation. Der Header-Schlüssel ist keine öffentliche API (unter iOS 27 vermutlich ignoriert
+    /// → 401, schwarzes Video ohne Filmstreifen, Issue #1); darum zusätzlich Immichs Sitzungs-Cookie.
+    func avAsset(_ url: URL) -> AVURLAsset {
+        var opts: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": authHeaders]
+        if let token, let host = url.host(), let c = HTTPCookie(properties: [
+            .domain: host, .path: "/", .name: "immich_access_token", .value: token]) {
+            opts[AVURLAssetHTTPCookiesKey] = [c]
+        }
+        return AVURLAsset(url: url, options: opts)
+    }
 
     func request<T: Decodable>(_ path: String, query: [String: String] = [:], method: String = "GET",
                                body: Data? = nil, auth: Bool = true) async throws -> T {

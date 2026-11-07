@@ -98,7 +98,7 @@ final class StoryVideos {
     func player(_ a: Asset) -> AVPlayer? {
         if let p = players[a.id] { return p }
         guard let url = ImmichClient.shared.videoURL(a.id) else { return nil }
-        let p = AVPlayer(playerItem: AVPlayerItem(asset: AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ImmichClient.shared.authHeaders])))
+        let p = AVPlayer(playerItem: AVPlayerItem(asset: ImmichClient.shared.avAsset(url)))
         p.isMuted = true; p.automaticallyWaitsToMinimizeStalling = false
         players[a.id] = p
         return p

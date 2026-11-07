@@ -490,7 +490,7 @@ private struct LoopingVideo: UIViewRepresentable {
     func makeUIView(context: Context) -> PlayerView {
         let v = PlayerView()
         if let url = ImmichClient.shared.videoURL(id) {
-            let item = AVPlayerItem(asset: AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ImmichClient.shared.authHeaders]))
+            let item = AVPlayerItem(asset: ImmichClient.shared.avAsset(url))
             let p = AVQueuePlayer(); p.isMuted = muted
             context.coordinator.looper = AVPlayerLooper(player: p, templateItem: item)
             v.layer0.player = p; v.layer0.videoGravity = .resizeAspect

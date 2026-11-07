@@ -176,7 +176,7 @@ struct VideoTrimView: View {
 
     private func load() async {
         guard let url = ImmichClient.shared.videoURL(asset.id) else { return }
-        let av = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ImmichClient.shared.authHeaders])
+        let av = ImmichClient.shared.avAsset(url)
         source = av
         let s = await SlowMo.detect(av)
         slow = s; slowDefault = s

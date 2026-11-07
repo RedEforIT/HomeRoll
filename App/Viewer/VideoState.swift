@@ -28,7 +28,7 @@ final class VideoState {
         id = asset.id
         duration = Double(asset.durationMs ?? 0) / 1000
         guard let url = ImmichClient.shared.videoURL(asset.id) else { return }
-        let av = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": ImmichClient.shared.authHeaders])
+        let av = ImmichClient.shared.avAsset(url)
         let p = AVPlayer(playerItem: AVPlayerItem(asset: av))
         p.isMuted = muted
         player = p
