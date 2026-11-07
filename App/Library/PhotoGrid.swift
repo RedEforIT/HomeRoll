@@ -49,8 +49,12 @@ final class GridController {
 /// Führt einen gemerkten Sprung erst aus, wenn Breite und Inhalt da sind.
 final class GridCollectionView: UICollectionView {
     var pending: (Int, UnitPoint)?
+    /// Fußzeile unter dem letzten Objekt (Mediathek: Anzahl + Backup-Stand), liegt im unteren Abstand
+    var footer: UIView?
+    var footerHeight: CGFloat = 0
     override func layoutSubviews() {
         super.layoutSubviews()
+        if let f = footer { f.frame = CGRect(x: 0, y: contentSize.height + 6, width: bounds.width, height: footerHeight) }
         guard let (index, anchor) = pending, bounds.width > 0 else { return }
         let n = numberOfItems(inSection: 0)
         guard n > 0 else { return }
@@ -342,6 +346,9 @@ struct PhotoGrid: UIViewRepresentable {
     var startAtTop = false
     /// Normale iOS-Scrollleiste: lässt sich greifen und ziehen → schnell durch große Mediatheken (Idee: Fork vands2013)
     var showsScrollIndicator = false
+    /// SwiftUI-Fußzeile unter dem letzten Objekt (wie Apples Mediathek-Fußzeile)
+    var footer: AnyView? = nil
+    var footerHeight: CGFloat = 92
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -350,6 +357,14 @@ struct PhotoGrid: UIViewRepresentable {
         let v = GridCollectionView(frame: .zero, collectionViewLayout: layout)
         v.backgroundColor = .clear
         v.showsVerticalScrollIndicator = showsScrollIndicator
+        if let footer {
+            let h = UIHostingController(rootView: footer)
+            h.view.backgroundColor = .clear
+            h.safeAreaRegions = []
+            v.addSubview(h.view)
+            v.footer = h.view; v.footerHeight = footerHeight
+            context.coordinator.footerHost = h
+        }
         v.contentInsetAdjustmentBehavior = .never
         v.alwaysBounceVertical = true
         let c = context.coordinator
@@ -391,7 +406,8 @@ struct PhotoGrid: UIViewRepresentable {
         c.parent = self
         controller.view = v
         if old.autoplay != autoplay { c.updateAutoplay() }
-        let bottom = 96 + (v.window?.safeAreaInsets.bottom ?? 34)
+        if let footer, let h = c.footerHost { h.rootView = footer }
+        let bottom = 96 + (v.window?.safeAreaInsets.bottom ?? 34) + (c.footerHost != nil ? footerHeight + 6 : 0)
         if v.contentInset.top != topInset || v.contentInset.bottom != bottom {
             v.contentInset = UIEdgeInsets(top: topInset, left: 0, bottom: bottom, right: 0)
             v.verticalScrollIndicatorInsets = v.contentInset
@@ -424,6 +440,7 @@ struct PhotoGrid: UIViewRepresentable {
 
     final class Coordinator: NSObject, UICollectionViewDataSource, UICollectionViewDelegate,
                              UICollectionViewDataSourcePrefetching, UIGestureRecognizerDelegate, UICollectionViewDragDelegate {
+        var footerHost: UIHostingController<AnyView>?
         func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith o: UIGestureRecognizer) -> Bool {
             g !== swipe && o !== swipe
         }

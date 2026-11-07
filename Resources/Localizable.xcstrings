@@ -6211,6 +6211,152 @@
           }
         }
       }
+    },
+    "%@ Fotos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Photos"
+          }
+        }
+      }
+    },
+    "%@ Videos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Videos"
+          }
+        }
+      }
+    },
+    "%@ Fotos, %@ Videos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ Photos, %2$@ Videos"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ Fotos, %2$@ Videos"
+          }
+        }
+      }
+    },
+    "Backup für %@ Objekte pausiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup Paused for %@ Items"
+          }
+        }
+      }
+    },
+    "Backup pausiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup Paused"
+          }
+        }
+      }
+    },
+    "Fortsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume"
+          }
+        }
+      }
+    },
+    "Pausieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause"
+          }
+        }
+      }
+    },
+    "Suche neue Fotos …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking for New Photos …"
+          }
+        }
+      }
+    },
+    "%@ Objekte werden gesichert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backing Up %@ Items"
+          }
+        }
+      }
+    },
+    "Backup unterbrochen: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup Stopped: %@"
+          }
+        }
+      }
+    },
+    "%@ Objekte noch nicht gesichert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Items Not Backed Up Yet"
+          }
+        }
+      }
+    },
+    "Auf deinem Server gesichert · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backed Up to Your Server · %@"
+          }
+        }
+      }
+    },
+    "Pausiert bis %@ morgen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paused until %@ tomorrow"
+          }
+        }
+      }
+    },
+    "Für einen Tag pausieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause for One Day"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

@@ -75,6 +75,8 @@ final class AppModel {
         ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear(); loggedIn = false
     }
     var tab: Tab = .library
+    /// Backup-Fenster (aus der Mediathek-Fußzeile)
+    var showBackup = false
     var scale: LibraryScale = .all
     var showSearch = false
     /// Suchbegriff aus Siri/Kurzbefehlen (wird von der Suche übernommen)

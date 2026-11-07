@@ -256,6 +256,13 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     func cities() async throws -> [AssetDTO] { try await request("search/cities") }
     func me() async throws -> UserDTO { try await request("users/me") }
 
+    /// Anzahl Fotos und Videos in der Mediathek (für die Fußzeile wie in Apples Fotos-App).
+    func statistics() async -> (images: Int, videos: Int)? {
+        struct S: Decodable { let images: Int; let videos: Int }
+        guard let s: S = try? await request("assets/statistics", query: ["visibility": "timeline"]) else { return nil }
+        return (s.images, s.videos)
+    }
+
     /// Metadaten-Suche mit dem neuen Filter-Objekt (v3.2+), blättert über `nextCursor` bis `size`.
     @MainActor func search(filter: [String: Any], size: Int = 250, order: String = "desc") async throws -> [AssetDTO] {
         try await searchPage(filter: filter, size: size, order: order).items

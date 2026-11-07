@@ -23,8 +23,13 @@ struct BackupView: View {
                         ProgressView(value: Double(engine.finished), total: Double(engine.total))
                         if !engine.current.isEmpty { Text(engine.current).font(.footnote).foregroundStyle(.secondary).lineLimit(1) }
                     }
-                    if engine.running {
-                        Button(String(localized: "Anhalten"), role: .destructive) { engine.cancel() }
+                    if engine.paused, let until = engine.pausedUntil {
+                        // wie iCloud-Fotos: Pausieren gilt einen Tag, auch für das Backup in der Nacht
+                        Text(String(localized: "Pausiert bis \(until.formatted(date: .omitted, time: .shortened)) morgen"))
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button(String(localized: "Fortsetzen")) { engine.resume() }.disabled(!engine.enabled)
+                    } else if engine.running {
+                        Button(String(localized: "Für einen Tag pausieren")) { engine.pause() }
                     } else {
                         Button(String(localized: "Jetzt sichern")) { engine.start() }.disabled(!engine.enabled)
                     }
@@ -75,18 +80,21 @@ struct BackupView: View {
     }
 
     private var icon: String {
-        switch engine.phase {
+        if engine.paused { return "pause.circle" }
+        return switch engine.phase {
         case .failed: "exclamationmark.icloud"
         case .scanning, .uploading: "arrow.triangle.2.circlepath.icloud"
         default: engine.enabled ? "checkmark.icloud" : "icloud.slash"
         }
     }
     private var tint: Color {
+        if engine.paused { return .secondary }
         if case .failed = engine.phase { return .orange }
         return engine.enabled ? .blue : .secondary
     }
     private var title: String {
-        switch engine.phase {
+        if engine.paused { return String(localized: "Backup pausiert") }
+        return switch engine.phase {
         case .scanning: String(localized: "Mediathek wird geprüft …")
         case .uploading: String(localized: "\(engine.finished.formatted()) von \(engine.total.formatted()) gesichert")
         case .failed(let m): m

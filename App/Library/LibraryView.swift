@@ -34,6 +34,7 @@ struct LibraryView: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(get: { app.showBackup }, set: { app.showBackup = $0 })) { BackupView() }
     }
 }
 
@@ -256,7 +257,8 @@ struct AllGrid: View {
                   menu: { a in AssetMenuUIKit.context(a, app: app, timeline: timeline) },
                   // nicht hinter der Einzelansicht oder in anderen Tabs weiterspielen (Akku, Leitung fürs Video vorn)
                   autoplay: app.autoplay && app.tab == .library && app.viewer == nil && app.memory == nil,
-                  showsScrollIndicator: true)
+                  showsScrollIndicator: true,
+                  footer: app.libraryCustomized ? nil : AnyView(LibraryFooter(refresh: timeline.totalCount) { app.showBackup = true }))
             .ignoresSafeArea()
             .overlay {
                 // Quelle des Zoom-Übergangs: unsichtbar über der Kachel (UIKit-Kacheln können selbst keine sein)

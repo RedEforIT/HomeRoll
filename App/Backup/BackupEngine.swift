@@ -30,6 +30,12 @@ final class BackupEngine {
     /// Bis hierher ist die Mediathek schon auf dem Server (eigener Import); nil = ganze Mediathek sichern.
     var importCutoff = UserDefaults.standard.object(forKey: "backup.importCutoff") as? Date { didSet { save() } }
     var lastRun = UserDefaults.standard.object(forKey: "backup.lastRun") as? Date
+    /// Pausiert bis (wie iCloud-Fotos „Pausieren“: einen Tag lang, auch nachts im Hintergrund); nil = läuft.
+    private(set) var pausedUntil = UserDefaults.standard.object(forKey: "backup.pausedUntil") as? Date
+    var paused: Bool { pausedUntil.map { $0 > Date() } ?? false }
+    /// Noch nicht gesichert laut letztem Lauf (für „Backup für 988 Objekte pausiert“); nil = unbekannt.
+    var pending: Int? { total > 0 ? max(0, total - finished) : storedPending }
+    private var storedPending = UserDefaults.standard.object(forKey: "backup.pending") as? Int
 
     var phase: Phase = .idle
     var total = 0
@@ -69,7 +75,7 @@ final class BackupEngine {
     private func handle(_ t: BGTask) {
         t.expirationHandler = { Task { @MainActor in BackupEngine.shared.cancel(); OfflineSync.shared.stop() } }
         Task {
-            await run()
+            if !paused { await run() }
             await OfflineSync.shared.runAndWait()      // danach Vorschauen fürs Offline-Blättern nachladen
             t.setTaskCompleted(success: phase == .done)
             schedule()
@@ -88,13 +94,40 @@ final class BackupEngine {
 
     /// Im Vordergrund: höchstens alle 10 Minuten automatisch.
     func runIfDue() {
-        guard enabled, !running, Date().timeIntervalSince(lastRun ?? .distantPast) > 600 else { return }
+        guard enabled, !paused, !running, Date().timeIntervalSince(lastRun ?? .distantPast) > 600 else { return }
         start()
     }
 
     func start() {
-        guard !running else { return }
+        guard !running, !paused else { return }
         task = Task { await run() }
+    }
+
+    /// Wie iCloud-Fotos: einen Tag pausieren (laufender Upload stoppt sofort, Nachtlauf wartet).
+    func pause(for seconds: TimeInterval = 24 * 3600) {
+        pausedUntil = Date(timeIntervalSinceNow: seconds)
+        UserDefaults.standard.set(pausedUntil, forKey: "backup.pausedUntil")
+        cancel()
+    }
+
+    #if DEBUG
+    /// Simulator: Zustände der Mediathek-Fußzeile ansehen, ohne etwas hochzuladen (FOTOS_BACKUP_DEMO=uploading|paused|done|failed).
+    func demo(_ s: String) {
+        total = 988; finished = 312; lastRun = Date(timeIntervalSinceNow: -300)
+        switch s {
+        case "uploading": phase = .uploading
+        case "paused": pausedUntil = Date(timeIntervalSinceNow: 3600)
+        case "failed": phase = .failed(String(localized: "Server nicht erreichbar"))
+        default: total = 0; finished = 0; phase = .done
+        }
+    }
+    #endif
+
+    func resume() {
+        pausedUntil = nil
+        UserDefaults.standard.removeObject(forKey: "backup.pausedUntil")
+        if case .failed = phase { phase = .idle }
+        start()
     }
 
     func cancel() { task?.cancel(); task = nil }
@@ -102,7 +135,7 @@ final class BackupEngine {
     // MARK: Ablauf
 
     func run() async {
-        guard !running, !hardOff else { return }
+        guard !running, !hardOff, !paused else { return }
         problems = []; total = 0; finished = 0; uploaded = 0; duplicates = 0; failed = 0; current = ""
         phase = .scanning
         let auth = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
@@ -152,6 +185,7 @@ final class BackupEngine {
         }
         current = ""
         lastRun = Date(); UserDefaults.standard.set(lastRun, forKey: "backup.lastRun")
+        storedPending = max(0, total - finished); UserDefaults.standard.set(storedPending, forKey: "backup.pending")
         phase = Task.isCancelled ? .idle : .done
     }
 

@@ -41,6 +41,7 @@ struct RootView: View {
             OfflineSync.shared.kick()
             #if DEBUG
             if ProcessInfo.processInfo.environment["FOTOS_BACKUP_NOW"] != nil { BackupEngine.shared.start() }
+            if let d = ProcessInfo.processInfo.environment["FOTOS_BACKUP_DEMO"] { BackupEngine.shared.demo(d) }
             #endif
         }
         .onChange(of: app.tab) { app.endSelection(); app.tabsExpanded = false }
