@@ -11,6 +11,8 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 > **Personal project:** I use it every day and keep it working as long as I need it myself. No guarantees, no support promises. Bug reports and pull requests are welcome, but I answer when I have time.
 >
 > Not affiliated with Apple or with Immich/FUTO. "Immich" is a trademark of its owners.
+>
+> **On a Mac?** [HomeRoll Desktop](https://github.com/silentprovider423/HomeRoll-Desk) is the macOS sibling – edits made there look the same on the iPhone.
 
 <p align="center">
   <img src="docs/screenshots/1-library.png" width="160" alt="Library">
