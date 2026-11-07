@@ -47,7 +47,7 @@ Important:
 ## 4. Install the IPA
 
 1. Install [SideStore](https://sidestore.io) (no computer needed later) or [AltStore](https://altstore.io) (needs AltServer on your computer) and sign in with your Apple ID.
-2. Download `HomeRoll.ipa` from the [latest release](https://github.com/silentprovider423/HomeRoll/releases/latest) on the iPhone.
+2. Download `HomeRoll-<version>.ipa` (e.g. `HomeRoll-1.0.3.ipa`) from the [latest release](https://github.com/silentprovider423/HomeRoll/releases/latest) on the iPhone.
 3. Open it with SideStore/AltStore ("Share" → SideStore, or the **+** button in My Apps).
 4. If iOS asks: Settings → Privacy & Security → **Developer Mode** on, iPhone restarts.
 
