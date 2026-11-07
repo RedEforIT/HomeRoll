@@ -14,6 +14,8 @@ final class ImageCache: @unchecked Sendable {
     /// sondern warten, bis eine neuere Zeitleisten-Antwort den Hash liefert (→ `.thumbChanged`).
     private var hashes: [String: String] = [:]
     private var missing: Set<String> = []
+    /// Bildfassungen nach dem Bearbeiten (gespiegelt aus UserDefaults – `version` läuft für jede Kachel)
+    private var versions = (UserDefaults.standard.dictionary(forKey: "thumbVersions") as? [String: String]) ?? [:]
     private let lock = NSLock()
     func setHash(_ id: String, _ h: String?) {
         lock.lock()
@@ -48,14 +50,12 @@ final class ImageCache: @unchecked Sendable {
 
     /// Nach dem Bearbeiten: neue Bildfassung erzwingen (bleibt über Neustarts gemerkt).
     func version(_ id: String) -> String? {
-        lock.lock(); let h = hashes[id]; lock.unlock()
-        let v = (UserDefaults.standard.dictionary(forKey: "thumbVersions") as? [String: String])?[id]
+        lock.lock(); let h = hashes[id], v = versions[id]; lock.unlock()
         let parts = [v, h.map { String($0.prefix(10)) }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: "-")
     }
     func bump(_ id: String) {
-        var d = (UserDefaults.standard.dictionary(forKey: "thumbVersions") as? [String: String]) ?? [:]
-        d[id] = String(Int(Date().timeIntervalSince1970))
+        let d = lock.withLock { versions[id] = String(Int(Date().timeIntervalSince1970)); return versions }
         UserDefaults.standard.set(d, forKey: "thumbVersions")
         for s in ["thumbnail", "preview", "fullsize"] { cache.removeObject(forKey: "\(id)-\(s)" as NSString) }
         NotificationCenter.default.post(name: .thumbChanged, object: id)
@@ -78,19 +78,21 @@ final class ImageCache: @unchecked Sendable {
     }
 
     /// Speicher → iPhone (Offline-Speicher) → Server; vom Server Geholtes landet auch im Offline-Speicher.
-    /// Gleichzeitige Anfragen für dasselbe Bild teilen sich einen Download (Kachel + Vorausladen); bricht der
+    /// Gleichzeitige Anfragen für dasselbe Bild teilen sich Laden und Entpacken (Kachel + Vorausladen; vorher las
+    /// jede das Bild einzeln vom iPhone – Idee aus dem Fork vands2013); bricht der
     /// letzte Wartende ab (Kachel weggescrollt), wird auch der Download abgebrochen – wie Apple: Verbindungen
     /// gehören den Kacheln, die man gleich sieht, nicht denen, an denen man vorbeigewischt ist.
     func load(_ id: String, _ size: ImmichClient.Size) async -> UIImage? {
-        if let i = await loadStored(id, size) { return i }
         let key = "\(id)-\(size.rawValue)"
-        let task: Task<UIImage?, Never> = lock.withLock {
-            if let e = inflight[key] { inflight[key]!.waiters += 1; return e.task }
+        if let i = get(key) { return i }
+        let entry: (task: Task<UIImage?, Never>, token: UUID) = lock.withLock {
+            if let e = inflight[key] { inflight[key]!.waiters += 1; return (e.task, e.token) }
             let token = UUID()
             let t = Task<UIImage?, Never> { [weak self] in
                 // nur den eigenen Eintrag entfernen (nach einem Abbruch kann schon ein neuer Download laufen)
                 defer { self?.lock.withLock { if self?.inflight[key]?.token == token { self?.inflight.removeValue(forKey: key) } } }
-                guard let url = ImmichClient.shared.thumbnailURL(id, size),
+                if let i = await self?.loadStored(id, size) { return i }
+                guard !Task.isCancelled, let url = ImmichClient.shared.thumbnailURL(id, size),
                       let data = try? await ImmichClient.shared.data(url) else { return nil }
                 if let k = self?.kind(size), OfflineSync.enabledFlag { OfflineStore.shared.store(k, id, data) }
                 guard let ready = await Task.detached(priority: .userInitiated, operation: { Self.decode(data) }).value else { return nil }
@@ -98,14 +100,13 @@ final class ImageCache: @unchecked Sendable {
                 return ready
             }
             inflight[key] = (t, 1, token)
-            return t
+            return (t, token)
         }
         return await withTaskCancellationHandler {
-            let r = await task.value
-            return r
+            await entry.task.value
         } onCancel: { [weak self] in
             self?.lock.withLock {
-                guard var e = self?.inflight[key] else { return }
+                guard var e = self?.inflight[key], e.token == entry.token else { return }
                 e.waiters -= 1
                 if e.waiters <= 0 { e.task.cancel(); self?.inflight.removeValue(forKey: key) } else { self?.inflight[key] = e }
             }
