@@ -46,7 +46,7 @@ final class BucketData {
 @MainActor @Observable
 final class TimelineStore {
     /// Älteste zuerst – die Mediathek zeigt wie Apple Fotos das Neueste unten.
-    private(set) var buckets: [TimeBucket] = []
+    private(set) var buckets: [TimeBucket] = [] { didSet { contentRevision += 1 } }
     @ObservationIgnored private var data: [String: BucketData] = [:]
     private(set) var loading = false
     var error: String?
@@ -59,6 +59,9 @@ final class TimelineStore {
     /// Zählt jede Neuberechnung – Ansichten mit teuren Ableitungen (Reisen, Letzte Tage) hängen daran.
     private(set) var version = 0
     @ObservationIgnored private var rebuildPending = false
+    /// Zählt Inhaltsänderungen; ist der gebündelte Stand schon aktuell, wird nicht neu gebaut (Idee aus dem Fork vands2013)
+    @ObservationIgnored private var contentRevision = 0
+    @ObservationIgnored private var builtRevision = -1
 
     var totalCount: Int { buckets.reduce(0) { $0 + $1.count } }
 
@@ -175,7 +178,7 @@ final class TimelineStore {
             let raw = try await ImmichClient.shared.bucketsData()
             let b = try JSONDecoder().decode([TimeBucket].self, from: raw).sorted { $0.timeBucket < $1.timeBucket }
             let old = Dictionary(buckets.map { ($0.timeBucket, $0.count) }, uniquingKeysWith: { a, _ in a })
-            buckets = b
+            if buckets != b { buckets = b }
             let keep = Set(b.map(\.timeBucket))
             for k in data.keys where !keep.contains(k) { forget(k) }
             // auch Monatsdateien, die noch nicht eingelesen sind
@@ -255,6 +258,7 @@ final class TimelineStore {
 
     /// Höchstens alle 0,8 s neu bündeln, solange noch Monate eintreffen.
     private func scheduleRebuild() {
+        contentRevision += 1
         guard !rebuildPending else { return }
         rebuildPending = true
         Task { try? await Task.sleep(for: .milliseconds(800)); await rebuildNow() }
@@ -268,9 +272,12 @@ final class TimelineStore {
         let prev = rebuildChain
         let t = Task { @MainActor in
             await prev?.value
+            guard builtRevision != contentRevision else { return }
+            let rev = contentRevision
             let bs = buckets, lists = bs.map { data[$0.timeBucket]?.assets }
             let (all, cells, idx) = await Task.detached(priority: .userInitiated) { Self.build(bs, lists) }.value
             allLoaded = all; gridCells = cells; gridIndex = idx
+            builtRevision = rev
             version += 1
         }
         rebuildChain = t

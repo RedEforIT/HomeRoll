@@ -8,7 +8,10 @@ final class VideoState {
     private(set) var id = ""
     private(set) var player: AVPlayer?
     private(set) var playing = false
-    var muted = false { didSet { player?.isMuted = muted } }
+    var muted = false { didSet {
+        player?.isMuted = muted
+        if playing { muted ? PlaybackAudioSession.release() : PlaybackAudioSession.activate() }
+    } }
     private(set) var time: Double = 0
     private(set) var duration: Double = 0
     /// Standbilder für den Filmstreifen (vom Server-Video, in kleiner Größe)
@@ -57,17 +60,18 @@ final class VideoState {
     private func observeEnd(_ p: AVPlayer) {
         if let e = endObserver { NotificationCenter.default.removeObserver(e) }
         endObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: p.currentItem, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.playing = false }
+            MainActor.assumeIsolated { self?.playing = false; PlaybackAudioSession.release() }
         }
     }
 
     func play() {
         guard let p = player else { return }
+        if !muted { PlaybackAudioSession.activate() }
         // am Ende: von vorn (wie Apple)
         if duration > 0, time >= duration - 0.15 { p.seek(to: .zero); time = 0 }
         p.play(); playing = true
     }
-    func pause() { player?.pause(); playing = false }
+    func pause() { player?.pause(); playing = false; PlaybackAudioSession.release() }
     func toggle() { playing ? pause() : play() }
 
     func seek(fraction f: Double) {
@@ -121,7 +125,7 @@ final class VideoState {
     }
 
     func stop() {
-        player?.pause()
+        player?.pause(); PlaybackAudioSession.release()
         if let o = timeObserver { player?.removeTimeObserver(o) }
         if let e = endObserver { NotificationCenter.default.removeObserver(e) }
         timeObserver = nil; endObserver = nil
