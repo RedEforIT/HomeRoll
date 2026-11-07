@@ -59,7 +59,7 @@ struct LibraryFooter: View {
             case .failed(let msg):
                 line(String(localized: "Backup unterbrochen: \(msg)"), action: String(localized: "Erneut versuchen")) { backup.start() }
             case .idle, .done:
-                if let n = backup.pending, n > 0, backup.phase == .done {
+                if let n = backup.pending, n > 0 {
                     line(String(localized: "\(n.formatted()) Objekte noch nicht gesichert"),
                          action: String(localized: "Jetzt sichern")) { backup.start() }
                 } else if let last = backup.lastRun {
