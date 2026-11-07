@@ -70,6 +70,10 @@ struct ViewerRequest: Identifiable {
 @MainActor @Observable
 final class AppModel {
     var loggedIn = ImmichClient.shared.isLoggedIn
+    /// Abmelden (Konto-Menü, oder „Server nicht erreichbar“ in der Mediathek → anderen Server wählen)
+    func signOut(_ timeline: TimelineStore) {
+        ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear(); loggedIn = false
+    }
     var tab: Tab = .library
     var scale: LibraryScale = .all
     var showSearch = false

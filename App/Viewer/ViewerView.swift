@@ -46,7 +46,7 @@ struct ViewerView: View {
                     topBar(a)
                     if a.isLivePhoto && a.isImage { liveMenu(a).frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 18) }
                     Spacer()
-                    if a.isVideo { VideoControls(video: video).padding(.bottom, 6) }
+                    if a.isVideo, !video.unplayable { VideoControls(video: video).padding(.bottom, 6) }
                     if assets.count > 1 || a.isVideo {
                         ScrubberStrip(assets: assets, selection: $selection, video: video) { on in
                             stripScrubbing = on
@@ -456,7 +456,8 @@ private struct VideoPage: View {
     var body: some View {
         ZStack {
             AssetThumb(id: asset.id, size: .preview).aspectRatio(asset.ratio, contentMode: .fit)
-            if video.id == asset.id, let p = video.player { PlayerSurface(player: p) }
+            if video.id == asset.id, video.unplayable { UnplayableVideoNote() }
+            else if video.id == asset.id, let p = video.player { PlayerSurface(player: p) }
             else if Connectivity.shared.serverOffline {
                 VStack(spacing: 10) {
                     Image(systemName: "play.slash.fill").font(.system(size: 40))
@@ -480,6 +481,23 @@ struct OfflineBadge: View {
             .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
             .padding(.horizontal, 14).padding(.vertical, 8)
             .glassEffect(.regular, in: .capsule)
+    }
+}
+
+/// Statt schwarzem Bild: Video ist auf dem iPhone nicht abspielbar – und wie der Server-Admin es lösen kann.
+private struct UnplayableVideoNote: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "play.slash.fill").font(.system(size: 40))
+            Text(String(localized: "Dieses Video kann das iPhone nicht abspielen")).font(.headline)
+            Text(String(localized: "Das Dateiformat wird von iOS nicht unterstützt (z. B. HEVC mit Kennung „hev1“, VP9 oder AV1). Abhilfe in Immich unter Verwaltung → Einstellungen → Video-Transkodierung: Echtzeit-Transkodierung einschalten oder solche Videos in H.264 umwandeln lassen."))
+                .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.white.opacity(0.85))
+        }
+        .foregroundStyle(.white).shadow(radius: 6)
+        .padding(24)
+        .frame(maxWidth: 420)
+        .background(.black.opacity(0.55), in: .rect(cornerRadius: 22))
+        .padding(20)
     }
 }
 

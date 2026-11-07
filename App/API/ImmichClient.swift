@@ -4,12 +4,14 @@ import UIKit
 import UniformTypeIdentifiers
 
 enum APIError: LocalizedError {
-    case notLoggedIn, http(Int, String), badURL
+    case notLoggedIn, http(Int, String), badURL, emailAsServer, notImmich
     var errorDescription: String? {
         switch self {
         case .notLoggedIn: String(localized: "Nicht angemeldet")
         case .http(let c, let m): String(localized: "Server-Fehler \(c): \(m)")
         case .badURL: String(localized: "Ungültige Server-Adresse")
+        case .emailAsServer: String(localized: "Das ist eine E-Mail-Adresse. Ins erste Feld gehört die Adresse deines Immich-Servers, z. B. http://192.168.1.20:2283")
+        case .notImmich: String(localized: "Unter dieser Adresse antwortet kein Immich-Server. Stimmen Adresse und Port (meist 2283)?")
         }
     }
 }
@@ -38,8 +40,13 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         cfg.httpMaximumConnectionsPerHost = 8
         cfg.timeoutIntervalForRequest = 30
         session = URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
-        if let s = UserDefaults.standard.string(forKey: "serverURL") { baseURL = URL(string: s) }
-        token = Keychain.get("accessToken")
+        // Der Schlüsselbund überlebt das Löschen der App, die Einstellungen nicht: Token ohne gültigen gespeicherten
+        // Server stammen aus einer früheren Installation (oder 1.0.1 hat Eingaben zu früh gespeichert) → nicht nutzen,
+        // sonst startet die App angemeldet mit kaputter Adresse und kommt nie zum Login (Issue #1). Die nächste
+        // Anmeldung überschreibt das Token.
+        if let s = UserDefaults.standard.string(forKey: "serverURL"), let u = Self.validBase(s) { baseURL = u }
+        else { UserDefaults.standard.removeObject(forKey: "serverURL") }
+        token = baseURL != nil ? Keychain.get("accessToken") : nil
         #if DEBUG
         // Simulator-Tests: Token/Server per Startumgebung (SIMCTL_CHILD_FOTOS_*), kein Passwort-Tippen.
         let env = ProcessInfo.processInfo.environment
@@ -52,22 +59,57 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     // MARK: Anmeldung
 
     func login(server: String, email: String, password: String) async throws -> LoginResponse {
-        var s = server.trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.hasSuffix("/") { s.removeLast() }
-        if !s.hasPrefix("http") { s = "https://" + s }
-        guard let url = URL(string: s) else { throw APIError.badURL }
+        let url = try await findServer(server)
+        let old = baseURL
         baseURL = url
-        let body = try JSONSerialization.data(withJSONObject: ["email": email, "password": password])
-        let r: LoginResponse = try await request("auth/login", method: "POST", body: body, auth: false)
-        token = r.accessToken
-        UserDefaults.standard.set(s, forKey: "serverURL")
-        Keychain.set(r.accessToken, for: "accessToken")
-        return r
+        do {
+            let body = try JSONSerialization.data(withJSONObject: ["email": email, "password": password])
+            let r: LoginResponse = try await request("auth/login", method: "POST", body: body, auth: false)
+            token = r.accessToken
+            // erst nach erfolgreicher Anmeldung merken
+            UserDefaults.standard.set(url.absoluteString, forKey: "serverURL")
+            Keychain.set(r.accessToken, for: "accessToken")
+            return r
+        } catch {
+            baseURL = old
+            throw error
+        }
+    }
+
+    /// http(s)-Adresse mit Rechnername und ohne Benutzerteil („test@email.com“ wäre sonst Benutzer test auf email.com).
+    static func validBase(_ s: String) -> URL? {
+        guard let u = URL(string: s), ["http", "https"].contains(u.scheme?.lowercased() ?? ""),
+              let h = u.host(), !h.isEmpty, u.user == nil else { return nil }
+        return u
+    }
+
+    /// Eingabe → Server-Adresse, unter der wirklich Immich antwortet. Ohne http(s):// erst https, dann http (Heimnetz).
+    private func findServer(_ input: String) async throws -> URL {
+        var s = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        while s.hasSuffix("/") { s.removeLast() }
+        if s.lowercased().hasSuffix("/api") { s.removeLast(4) }
+        let hasScheme = s.lowercased().hasPrefix("http://") || s.lowercased().hasPrefix("https://")
+        let tries = (hasScheme ? [s] : ["https://" + s, "http://" + s]).compactMap(Self.validBase)
+        guard !tries.isEmpty else { throw s.contains("@") && !s.contains("/") ? APIError.emailAsServer : APIError.badURL }
+        var reached = false, lastError: Error?
+        for u in tries {
+            var req = URLRequest(url: u.appendingPathComponent("api/server/ping"))
+            req.timeoutInterval = 10
+            do {
+                let (data, resp) = try await session.data(for: req)
+                if (resp as? HTTPURLResponse)?.statusCode == 200,
+                   (try? JSONDecoder().decode([String: String].self, from: data))?["res"] == "pong" { return u }
+                reached = true
+            } catch { lastError = error }
+        }
+        // Hat irgendein Server geantwortet (nur eben nicht Immich), ist das die nützlichere Meldung als ein Netzfehler
+        throw reached ? APIError.notImmich : (lastError ?? APIError.notImmich)
     }
 
     func logout() {
         token = nil
         Keychain.set(nil, for: "accessToken")
+        videoLock.withLock { videoFallback = [:]; realtimeHLS = nil }
         AppGroup.saveAccess(nil)
     }
 
@@ -487,7 +529,39 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         if let v = ImageCache.shared.version(id) { q["v"] = v }
         return try? url("assets/\(id)/thumbnail", query: q)
     }
-    func videoURL(_ id: String) -> URL? { try? url("assets/\(id)/video/playback") }
+    func videoURL(_ id: String) -> URL? {
+        videoLock.withLock { videoFallback[id] } ?? (try? url("assets/\(id)/video/playback"))
+    }
+
+    // MARK: Videos, die iOS nicht abspielen kann
+
+    private let videoLock = NSLock()
+    private var videoFallback: [String: URL] = [:]
+    private var realtimeHLS: Bool?
+
+    /// Ausweg, wenn die Wiedergabedatei auf dem iPhone nicht abspielbar ist (HEVC mit Kennung „hev1“ statt „hvc1“,
+    /// VP9, AV1, MKV: Laufzeit lesbar, Bild schwarz – Issue #1): erst das Original (falls nur die umgewandelte Datei
+    /// nicht passt), dann Immichs Echtzeit-Umwandlung (HLS, wenn auf dem Server eingeschaltet). nil = beides nicht.
+    func playableFallback(for id: String) async -> AVURLAsset? {
+        var tries = [originalURL(id)].compactMap { $0 }
+        if await realtimeTranscoding(), let u = try? url("assets/\(id)/video/stream/main.m3u8") { tries.append(u) }
+        for u in tries {
+            let a = avAsset(u)
+            if (try? await a.load(.isPlayable)) == true {
+                videoLock.withLock { videoFallback[id] = u }
+                return a
+            }
+        }
+        return nil
+    }
+
+    private func realtimeTranscoding() async -> Bool {
+        if let v = videoLock.withLock({ realtimeHLS }) { return v }
+        struct Features: Decodable { let realtimeTranscoding: Bool? }
+        let v = ((try? await request("server/features")) as Features?)?.realtimeTranscoding ?? false
+        videoLock.withLock { realtimeHLS = v }
+        return v
+    }
     func originalURL(_ id: String, edited: Bool = true) -> URL? {
         try? url("assets/\(id)/original", query: ["edited": edited ? "true" : "false"])
     }

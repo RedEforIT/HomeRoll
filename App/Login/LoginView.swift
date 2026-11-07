@@ -2,11 +2,22 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AppModel.self) private var app
-    @AppStorage("serverURL") private var server = ""
+    /// Nur vorbelegt – gespeichert wird die Adresse erst nach erfolgreicher Anmeldung (ImmichClient.login)
+    @State private var server = UserDefaults.standard.string(forKey: "serverURL") ?? ""
     @State private var email = ""
     @State private var password = ""
     @State private var busy = false
     @State private var error: String?
+
+    init() {
+        #if DEBUG
+        // Simulator-Tests: Felder mit „@“ vorbelegen (simctl tippt es mit deutscher Mac-Tastatur als Anführungszeichen)
+        let env = ProcessInfo.processInfo.environment
+        if let s = env["FOTOS_LOGIN_SERVER"] { _server = State(initialValue: s) }
+        if let e = env["FOTOS_LOGIN_EMAIL"] { _email = State(initialValue: e) }
+        if let p = env["FOTOS_LOGIN_PASSWORD"] { _password = State(initialValue: p) }
+        #endif
+    }
 
     var body: some View {
         ZStack {

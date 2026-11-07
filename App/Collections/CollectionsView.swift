@@ -200,7 +200,7 @@ struct CollectionsView: View {
                             Task { await model.load(); await timeline.reload(); await timeline.loadAll() }
                         }
                         Button(String(localized: "Abmelden"), systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                            ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear(); app.loggedIn = false
+                            app.signOut(timeline)
                         }
                     }
                     Section(String(localized: "\(timeline.totalCount.formatted()) Objekte auf deinem Server")) {}

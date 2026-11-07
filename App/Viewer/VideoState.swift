@@ -18,6 +18,8 @@ final class VideoState {
     private(set) var frames: [UIImage] = []
     /// Zeitlupe (120/240 fps): wird verlangsamt abgespielt wie bei Apple
     private(set) var slowMo: SlowMo?
+    /// Weder Wiedergabedatei noch Ausweichweg sind auf dem iPhone abspielbar → Hinweis statt schwarzem Bild
+    private(set) var unplayable = false
     /// Beim Ziehen am Filmstreifen nicht vom Player überschreiben lassen
     @ObservationIgnored var scrubbing = false
     @ObservationIgnored private var timeObserver: Any?
@@ -46,7 +48,19 @@ final class VideoState {
         loadFrames(av)
         let want = asset.id
         Task { [weak self] in
-            guard let s = await SlowMo.detect(av), let comp = try? await s.composition(av) else { return }
+            // Normalfall sofort abspielen; erst wenn iOS die Datei nicht dekodieren kann, Ausweichweg suchen
+            guard (try? await av.load(.isPlayable)) == false else { return }
+            let alt = await ImmichClient.shared.playableFallback(for: want)
+            guard let self, self.id == want, let p = self.player else { return }
+            guard let alt else { self.unplayable = true; self.pause(); return }
+            p.replaceCurrentItem(with: AVPlayerItem(asset: alt))
+            self.observeEnd(p)
+            self.framesTask?.cancel(); self.frames = []; self.loadFrames(alt)
+            if self.playing { p.play() }
+        }
+        Task { [weak self] in
+            guard (try? await av.load(.isPlayable)) == true,
+                  let s = await SlowMo.detect(av), let comp = try? await s.composition(av) else { return }
             guard let self, self.id == want, let p = self.player else { return }
             let resume = self.playing
             p.replaceCurrentItem(with: SlowMo.item(comp))
@@ -130,7 +144,7 @@ final class VideoState {
         if let e = endObserver { NotificationCenter.default.removeObserver(e) }
         timeObserver = nil; endObserver = nil
         framesTask?.cancel(); framesTask = nil
-        player = nil; playing = false; time = 0; frames = []; id = ""; slowMo = nil
+        player = nil; playing = false; time = 0; frames = []; id = ""; slowMo = nil; unplayable = false
         seeking = false; pendingSeek = nil; scrubbing = false
     }
 

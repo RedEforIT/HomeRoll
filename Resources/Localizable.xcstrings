@@ -6061,6 +6061,66 @@
           }
         }
       }
+    },
+    "Das ist eine E-Mail-Adresse. Ins erste Feld gehört die Adresse deines Immich-Servers, z. B. http://192.168.1.20:2283": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That's an email address. The first field needs your Immich server's address, e.g. http://192.168.1.20:2283"
+          }
+        }
+      }
+    },
+    "Unter dieser Adresse antwortet kein Immich-Server. Stimmen Adresse und Port (meist 2283)?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Immich server answered at this address. Are the address and port (usually 2283) right?"
+          }
+        }
+      }
+    },
+    "Erneut versuchen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try Again"
+          }
+        }
+      }
+    },
+    "Abmelden / anderer Server": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign Out / Change Server"
+          }
+        }
+      }
+    },
+    "Dieses Video kann das iPhone nicht abspielen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This video can't be played on iPhone"
+          }
+        }
+      }
+    },
+    "Das Dateiformat wird von iOS nicht unterstützt (z. B. HEVC mit Kennung „hev1“, VP9 oder AV1). Abhilfe in Immich unter Verwaltung → Einstellungen → Video-Transkodierung: Echtzeit-Transkodierung einschalten oder solche Videos in H.264 umwandeln lassen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS doesn't support this file format (e.g. HEVC tagged “hev1”, VP9 or AV1). To fix it in Immich, go to Administration → Settings → Video Transcoding and turn on real-time transcoding, or have these videos transcoded to H.264."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

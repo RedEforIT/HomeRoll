@@ -21,7 +21,14 @@ struct LibraryView: View {
             if timeline.buckets.isEmpty {
                 if timeline.loading { ProgressView().tint(.white) }
                 else if let e = timeline.error {
-                    ContentUnavailableView(String(localized: "Server nicht erreichbar"), systemImage: "wifi.exclamationmark", description: Text(e))
+                    ContentUnavailableView {
+                        Label(String(localized: "Server nicht erreichbar"), systemImage: "wifi.exclamationmark")
+                    } description: { Text(e) } actions: {
+                        Button(String(localized: "Erneut versuchen")) { Task { await timeline.reload() } }
+                            .buttonStyle(.glassProminent)
+                        // Ausweg statt Neuinstallation, wenn die Adresse nicht (mehr) stimmt
+                        Button(String(localized: "Abmelden / anderer Server")) { app.signOut(timeline) }
+                    }
                 } else {
                     ContentUnavailableView(String(localized: "Noch keine Fotos"), systemImage: "photo.on.rectangle")
                 }
