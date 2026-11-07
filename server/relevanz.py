@@ -24,7 +24,8 @@ import numpy as np, psycopg, requests
 
 IMMICH = os.environ.get("IMMICH_URL", "http://immich-server:2283/api")
 ML = os.environ.get("ML_URL", "http://immich-machine-learning:3003")
-DB = os.environ["DB_URL"]
+# Datenbank-Zugang lieber aus einer Datei (Docker-Secret) als aus der Umgebung (GitHub-Issue #10)
+DB = open(os.environ["DB_URL_FILE"]).read().strip() if os.environ.get("DB_URL_FILE") else os.environ["DB_URL"]
 PORT = int(os.environ.get("PORT", "2284"))
 # An Testbildern geeicht (03.11.2026): Fehlgriffe ≤ 2,7, echte Treffer ≥ 2,8; Einzeltreffer ragen ≥ 0,8 über Platz 10.
 Z_MIN = float(os.environ.get("Z_MIN", "2.8"))
@@ -36,6 +37,27 @@ log = logging.info
 _users: dict[str, tuple[str, float]] = {}      # Anmeldung → (userId, gültig bis)
 _emb: dict[tuple[str, str], np.ndarray] = {}    # (Modell, Text) → Vektor
 _lock = threading.Lock()
+
+
+# --- Schutz (GitHub-Issue #6): Größenlimit, höchstens N gleichzeitige Anfragen, Fehlversuche je Adresse bremsen ---
+MAX_BODY = int(os.environ.get("MAX_BODY_MB", "2")) << 20
+_slots = threading.BoundedSemaphore(int(os.environ.get("MAX_CONCURRENT", "4")))
+_fails: dict[str, list[float]] = {}
+_fails_lock = threading.Lock()
+
+
+def too_many_failures(ip: str) -> bool:
+    """Mehr als 20 abgelehnte Anmeldungen je Minute von einer Adresse → 429 (schont auch Immich)."""
+    now = time.time()
+    with _fails_lock:
+        recent = [t for t in _fails.get(ip, []) if now - t < 60]
+        _fails[ip] = recent
+        return len(recent) >= 20
+
+
+def note_failure(ip: str) -> None:
+    with _fails_lock:
+        _fails.setdefault(ip, []).append(time.time())
 
 
 def user_id(headers) -> str | None:
@@ -50,7 +72,10 @@ def user_id(headers) -> str | None:
         if hit and hit[1] > now:
             return hit[0]
     h = {"Authorization": auth} if auth else {"x-api-key": key}
-    r = requests.get(f"{IMMICH}/users/me", headers=h, timeout=10)
+    try:
+        r = requests.get(f"{IMMICH}/users/me", headers=h, timeout=5)
+    except requests.RequestException:
+        return None
     if r.status_code != 200:
         return None
     uid = r.json()["id"]
@@ -199,18 +224,32 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, {"ok": True}) if self.path == "/health" else self._send(404, {})
 
     def do_POST(self):
-        if self.path == "/gesichter":
-            return self.faces()
-        if self.path != "/relevanz":
+        if self.path not in ("/gesichter", "/relevanz"):
             return self._send(404, {})
+        ip = self.client_address[0]
+        if too_many_failures(ip):
+            return self._send(429, {"error": "zu viele Versuche"})
+        if int(self.headers.get("Content-Length") or 0) > MAX_BODY:
+            return self._send(413, {"error": "zu groß"})
+        if not _slots.acquire(timeout=30):
+            return self._send(503, {"error": "ausgelastet"})
+        try:
+            self.handle_post(ip)
+        finally:
+            _slots.release()
+
+    def handle_post(self, ip: str):
+        if self.path == "/gesichter":
+            return self.faces(ip=ip)
         try:
             uid = user_id(self.headers)
             if not uid:
+                note_failure(ip)
                 return self._send(401, {"error": "nicht angemeldet"})
             n = int(self.headers.get("Content-Length") or 0)
-            req = json.loads(self.rfile.read(min(n, 2_000_000)) or b"{}")
+            req = json.loads(self.rfile.read(n) or b"{}")
             if "personId" in req:
-                return self.faces(req)
+                return self.faces(req, ip)
             if "check" in req:
                 auth = {"Authorization": self.headers["Authorization"]} if self.headers.get("Authorization") else {"x-api-key": self.headers.get("x-api-key", "")}
                 ids = [str(i) for i in req.get("check", [])][:60]
@@ -225,10 +264,11 @@ class Handler(BaseHTTPRequestHandler):
             log("Fehler: %s", e)
             self._send(500, {"error": "intern"})
 
-    def faces(self, req=None):
+    def faces(self, req=None, ip: str = ""):
         try:
             uid = user_id(self.headers)
             if not uid:
+                note_failure(ip)
                 return self._send(401, {"error": "nicht angemeldet"})
             if req is None:
                 n = int(self.headers.get("Content-Length") or 0)

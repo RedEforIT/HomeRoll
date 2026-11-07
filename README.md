@@ -86,6 +86,14 @@ You need your own Immich server for this. **Step-by-step guide from zero (server
 2. Install it with [SideStore](https://sidestore.io) or [AltStore](https://altstore.io). A free Apple ID is enough, the app then has to be refreshed every 7 days (SideStore does that on the phone).
 3. Open the app and log in with your Immich server address and your Immich account.
 
+### Verify the download
+
+Every release lists the file's SHA-256 (GitHub also shows it as the asset "digest"). Check it before installing:
+
+```bash
+shasum -a 256 HomeRoll-<version>.ipa
+```
+
 ## Build & install
 
 ```bash

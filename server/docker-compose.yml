@@ -1,26 +1,50 @@
-# Kategorien-Dienst für die Fotos-App: liest Immich-DB (nur Leserechte), setzt Tags „Kategorie/…“ per API.
+# Kategorien + Relevanz für die Fotos-App – neben Immich (Docker-Netz immich_default).
+# Sicher voreingestellt (GitHub-Issues #3, #4, #10): Port nur auf diesem Rechner, ohne Root, schreibgeschütztes
+# System, Datenbank-Zugang als Datei. Siehe README.md für den Zugriff aus dem Heimnetz bzw. über den Reverse-Proxy.
+x-hardened: &hardened
+  restart: always
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 128
+  networks: [immich]
+  secrets: [db_url]
+
 services:
   kategorien:
+    <<: *hardened
     build: .
     container_name: immich_kategorien
-    restart: always
     env_file: .env
     environment:
+      DB_URL_FILE: /run/secrets/db_url
       KEYS_FILE: /config/keys.json
       STATE_DB: /data/state.db
       INTERVAL: "900"
     volumes:
       - ./keys.json:/config/keys.json:ro
       - ./data:/data
-    networks: [immich]
+    mem_limit: 1g
+    cpus: 1
   relevanz:
+    <<: *hardened
     build: .
     container_name: immich_relevanz
-    restart: always
     env_file: .env
+    environment:
+      DB_URL_FILE: /run/secrets/db_url
     command: ["python", "-u", "/app/relevanz.py"]
-    ports: ["2284:2284"]
-    networks: [immich]
+    # Standard: nur dieser Rechner. Für Zugriff aus dem Heimnetz BIND_ADDR=<LAN-IP> in .env setzen –
+    # nie per Router-Portfreigabe ins Internet.
+    ports: ["${BIND_ADDR:-127.0.0.1}:2284:2284"]
+    mem_limit: 1g
+    cpus: 1
+
+secrets:
+  db_url:
+    file: ./db_url.txt
+
 networks:
   immich:
     name: immich_default

@@ -9,7 +9,7 @@ POST /bereinigen  multipart: image (JPEG/PNG), mask (PNG, weiß = entfernen, bel
 Nur der Bereich um die Markierung wird gerechnet (auf 512 px skaliert) und weich zurückgesetzt – der Rest des Fotos
 bleibt Pixel für Pixel unverändert.
 """
-import cgi, io, logging, os, threading, time
+import email.parser, email.policy, logging, os, threading, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import cv2, numpy as np, onnxruntime as ort, requests
 
@@ -26,6 +26,38 @@ _run = threading.Lock()
 _users: dict[str, float] = {}
 
 
+# --- Schutz (GitHub-Issue #6): Größenlimit, höchstens N gleichzeitige Anfragen, Fehlversuche je Adresse bremsen ---
+MAX_BODY = int(os.environ.get("MAX_BODY_MB", "30")) << 20
+_slots = threading.BoundedSemaphore(int(os.environ.get("MAX_CONCURRENT", "2")))
+_fails: dict[str, list[float]] = {}
+_fails_lock = threading.Lock()
+
+
+def too_many_failures(ip: str) -> bool:
+    """Mehr als 20 abgelehnte Anmeldungen je Minute von einer Adresse → 429 (schont auch Immich)."""
+    now = time.time()
+    with _fails_lock:
+        recent = [t for t in _fails.get(ip, []) if now - t < 60]
+        _fails[ip] = recent
+        return len(recent) >= 20
+
+
+def note_failure(ip: str) -> None:
+    with _fails_lock:
+        _fails.setdefault(ip, []).append(time.time())
+
+
+def multipart(headers, body: bytes) -> dict[str, bytes]:
+    """multipart/form-data → {Feldname: Inhalt} (ersetzt das in Python 3.13 entfernte cgi-Modul)."""
+    ctype = headers.get("Content-Type", "")
+    if not ctype.startswith("multipart/form-data"):
+        raise ValueError("multipart/form-data erwartet")
+    msg = email.parser.BytesParser(policy=email.policy.HTTP).parsebytes(
+        b"Content-Type: " + ctype.encode() + b"\r\n\r\n" + body)
+    return {part.get_param("name", header="content-disposition"): part.get_payload(decode=True) or b""
+            for part in msg.iter_parts()}
+
+
 def authorized(h) -> bool:
     cred = h.get("Authorization") or h.get("x-api-key") or ""
     if not cred:
@@ -33,7 +65,10 @@ def authorized(h) -> bool:
     if _users.get(cred, 0) > time.time():
         return True
     hdr = {"Authorization": cred} if h.get("Authorization") else {"x-api-key": cred}
-    ok = requests.get(f"{IMMICH}/users/me", headers=hdr, timeout=10).status_code == 200
+    try:
+        ok = requests.get(f"{IMMICH}/users/me", headers=hdr, timeout=5).status_code == 200
+    except requests.RequestException:
+        return False
     if ok:
         _users[cred] = time.time() + 600
     return ok
@@ -88,12 +123,23 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/bereinigen":
             return self.send_error(404)
+        ip = self.client_address[0]
+        if too_many_failures(ip):
+            return self.send_error(429)
         if not authorized(self.headers):
+            note_failure(ip)
             return self.send_error(401)
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0 or n > MAX_BODY:
+            return self.send_error(413)
+        if not _slots.acquire(timeout=30):
+            return self.send_error(503)
         try:
-            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={"REQUEST_METHOD": "POST"})
-            img = cv2.imdecode(np.frombuffer(form["image"].file.read(), np.uint8), cv2.IMREAD_COLOR)
-            msk = cv2.imdecode(np.frombuffer(form["mask"].file.read(), np.uint8), cv2.IMREAD_GRAYSCALE)
+            form = multipart(self.headers, self.rfile.read(n))
+            img = cv2.imdecode(np.frombuffer(form["image"], np.uint8), cv2.IMREAD_COLOR)
+            msk = cv2.imdecode(np.frombuffer(form["mask"], np.uint8), cv2.IMREAD_GRAYSCALE)
+            if img is None or msk is None:
+                raise ValueError("Bild oder Maske nicht lesbar")
             t = time.time()
             out = clean(img, msk)
             ok, jpg = cv2.imencode(".jpg", out, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -102,7 +148,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(jpg))); self.end_headers(); self.wfile.write(jpg.tobytes())
         except Exception as e:
             log("Fehler: %s", e)
-            self.send_error(400, str(e))
+            self.send_error(400, "Anfrage nicht verarbeitbar")
+        finally:
+            _slots.release()
 
 
 if __name__ == "__main__":

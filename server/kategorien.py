@@ -13,7 +13,8 @@ import numpy as np, cv2, psycopg, requests
 RULES_VERSION = 1
 IMMICH = os.environ.get("IMMICH_URL", "http://immich-server:2283/api")
 ML = os.environ.get("ML_URL", "http://immich-machine-learning:3003")
-DB = os.environ["DB_URL"]
+# Datenbank-Zugang lieber aus einer Datei (Docker-Secret) als aus der Umgebung (GitHub-Issue #10)
+DB = open(os.environ["DB_URL_FILE"]).read().strip() if os.environ.get("DB_URL_FILE") else os.environ["DB_URL"]
 KEYS = json.load(open(os.environ.get("KEYS_FILE", "/config/keys.json")))  # {userId: apiKey}
 STATE = os.environ.get("STATE_DB", "/data/state.db")
 INTERVAL = int(os.environ.get("INTERVAL", "900"))
