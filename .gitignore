@@ -1,5 +1,6 @@
 build/
 build-ipa/
+build-ipa.log
 DerivedData/
 Payload/
 *.xcodeproj/

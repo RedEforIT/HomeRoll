@@ -71,6 +71,8 @@ struct BackupView: View {
                         ForEach(engine.problems.prefix(50), id: \.self) { Text($0).font(.footnote) }
                     }
                 }
+                // installierte Version, zum Vergleich mit dem neuesten Release (GitHub-Issue #12)
+                Section {} footer: { Text(verbatim: "HomeRoll \(AppInfo.version)").frame(maxWidth: .infinity) }
             }
             .navigationTitle(String(localized: "Backup & Offline"))
             .navigationBarTitleDisplayMode(.inline)

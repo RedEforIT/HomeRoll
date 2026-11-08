@@ -90,6 +90,7 @@ struct CollectionsView: View {
     @State private var newAlbum = false
     @State private var showBackup = false
     @State private var showShared = false
+    @State private var confirmSignOut = false
     @State private var recentDays: [DayGroup] = []
     /// Titelbild je Tag ohne Bildschirmfotos/Dokumente (wie Apple), sonst das erste Foto des Tages
     @State private var dayCovers: [Date: String] = [:]
@@ -199,15 +200,24 @@ struct CollectionsView: View {
                         Button(String(localized: "Aktualisieren"), systemImage: "arrow.clockwise") {
                             Task { await model.load(); await timeline.reload(); await timeline.loadAll() }
                         }
+                        // Abmelden löscht Offline-Vorschauen und Zwischenspeicher → vorher nachfragen (wie im Mediathek-Menü)
                         Button(String(localized: "Abmelden"), systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
-                            app.signOut(timeline)
+                            confirmSignOut = true
                         }
                     }
-                    Section(String(localized: "\(timeline.totalCount.formatted()) Objekte auf deinem Server")) {}
+                    // leere Abschnitte zeigt das Menü nicht an → als Textzeilen (nicht antippbar)
+                    Section {
+                        Text(String(localized: "\(timeline.totalCount.formatted()) Objekte auf deinem Server"))
+                        Text(verbatim: "HomeRoll \(AppInfo.version)")   // installierte Version (GitHub-Issue #12)
+                    }
                 } label: {
                     Circle().fill(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 46, height: 46)
                         .overlay { Text(String(model.userName.prefix(1))).font(.system(size: 20, weight: .semibold)).foregroundStyle(.white) }
+                }
+                .confirmationDialog(String(localized: "Abmelden"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+                    Button(String(localized: "Abmelden"), role: .destructive) { app.signOut(timeline) }
+                    Button(String(localized: "Abbrechen"), role: .cancel) {}
                 }
             }
         }

@@ -43,6 +43,14 @@ struct FotosApp: App {
     }
 }
 
+/// App-Version für Profil-Menü und Backup-Seite (GitHub-Issue #12), z. B. „1.0.10 (11)“
+enum AppInfo {
+    static var version: String {
+        let i = Bundle.main.infoDictionary
+        return "\(i?["CFBundleShortVersionString"] as? String ?? "?") (\(i?["CFBundleVersion"] as? String ?? "?"))"
+    }
+}
+
 enum Tab: Hashable { case library, collections }
 enum LibraryScale: String, CaseIterable, Identifiable {
     case years = "Jahre", months = "Monate", all = "Alle"
