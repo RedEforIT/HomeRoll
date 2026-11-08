@@ -35,10 +35,13 @@ struct LibraryFooter: View {
     }
 
     private func countText(_ s: (images: Int, videos: Int)) -> String {
-        switch (s.images, s.videos) {
-        case (_, 0): String(localized: "\(s.images.formatted()) Fotos")
-        case (0, _): String(localized: "\(s.videos.formatted()) Videos")
-        default: String(localized: "\(s.images.formatted()) Fotos, \(s.videos.formatted()) Videos")
+        // Einzahl getrennt („1 Videos“ stand so in Rückmeldungen)
+        let photos = s.images == 1 ? String(localized: "1 Foto") : String(localized: "\(s.images.formatted()) Fotos")
+        let videos = s.videos == 1 ? String(localized: "1 Video") : String(localized: "\(s.videos.formatted()) Videos")
+        return switch (s.images, s.videos) {
+        case (_, 0): photos
+        case (0, _): videos
+        default: "\(photos), \(videos)"
         }
     }
 

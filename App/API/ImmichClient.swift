@@ -610,7 +610,7 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     /// nicht passt), dann Immichs Echtzeit-Umwandlung (HLS, wenn auf dem Server eingeschaltet). nil = beides nicht.
     func playableFallback(for id: String) async -> AVURLAsset? {
         var tries = [originalURL(id)].compactMap { $0 }
-        if await realtimeTranscoding(), let u = try? url("assets/\(id)/video/stream/main.m3u8") { tries.append(u) }
+        if await realtimeTranscoding(), let u = await hlsVariant(id) { tries.append(u) }
         for u in tries {
             let a = avAsset(u)
             if (try? await a.load(.isPlayable)) == true {
@@ -621,10 +621,38 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         return nil
     }
 
+    /// HLS-Stream wie in Immich, aber FEST auf eine Stufe: Immichs Sitzung verträgt keinen Stufenwechsel („Variant
+    /// changed“ → Umwandlung startet neu), Apples Player probiert aber von sich aus mehrere → 1–2 min Laden, Ruckeln,
+    /// 20 s nach Pause (GitHub-Issue #1).
+    func hlsVariant(_ id: String) async -> URL? {
+        guard let main = try? url("assets/\(id)/video/stream/main.m3u8"), let d = try? await data(main),
+              let text = String(data: d, encoding: .utf8) else { return nil }
+        let lines = text.split(whereSeparator: \.isNewline).map(String.init)
+        var variants: [(height: Int, hevc: Bool, uri: String)] = []
+        for (n, line) in lines.enumerated() where line.hasPrefix("#EXT-X-STREAM-INF") && n + 1 < lines.count {
+            let res = line.range(of: #"RESOLUTION=\d+x(\d+)"#, options: .regularExpression).map { String(line[$0]) }
+            let h = res.flatMap { Int($0.split(separator: "x").last ?? "") } ?? 0
+            variants.append((h, line.contains("hvc1") || line.contains("hev1"), lines[n + 1]))
+        }
+        // H.264: auf Servern ohne Grafikbeschleunigung um ein Vielfaches schneller umzuwandeln als HEVC (HEVC 1080p
+        // mit 120 fps schaffte die CPU nicht in Echtzeit → Zeitüberschreitung); 720p im Heimnetz, 480p unterwegs.
+        let cap = Self.isPrivateHost(main.host() ?? "") ? 720 : 480
+        let fit = variants.filter { $0.height <= cap }
+        let pick = fit.filter { !$0.hevc }.max { $0.height < $1.height } ?? fit.max { $0.height < $1.height }
+            ?? variants.min { $0.height < $1.height }
+        guard let pick else { return nil }
+        return URL(string: pick.uri, relativeTo: main)?.absoluteURL
+    }
+
+    /// Beim Start einmal fragen, ob der Server Echtzeit-Umwandlung kann (spart die Wartezeit, wenn ein Video den Ausweichweg braucht).
+    func prepareVideo() async { _ = await realtimeTranscoding() }
+
     private func realtimeTranscoding() async -> Bool {
         if let v = videoLock.withLock({ realtimeHLS }) { return v }
         struct Features: Decodable { let realtimeTranscoding: Bool? }
-        let v = ((try? await request("server/features")) as Features?)?.realtimeTranscoding ?? false
+        // nur eine echte Antwort merken – scheitert die Abfrage (offline, Netz-Erlaubnis noch offen), später neu fragen
+        guard let f: Features = try? await request("server/features") else { return false }
+        let v = f.realtimeTranscoding ?? false
         videoLock.withLock { realtimeHLS = v }
         return v
     }

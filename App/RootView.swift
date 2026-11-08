@@ -30,6 +30,7 @@ struct RootView: View {
         .sheet(isPresented: Binding(get: { backupConsent }, set: { if !$0 { backupConsent = false } })) { BackupConsentView() }
         .task {
             if timeline.buckets.isEmpty { await timeline.showCached() }
+            Task { await ImmichClient.shared.prepareVideo() }
             var reloaded = false
             if let me = try? await ImmichClient.shared.me() {
                 app.userID = me.id; app.userName = me.name; reloaded = await timeline.setUser(me.id)

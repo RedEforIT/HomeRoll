@@ -12,6 +12,26 @@
         }
       }
     },
+    "1 Foto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Photo"
+          }
+        }
+      }
+    },
+    "1 Video": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 Video"
+          }
+        }
+      }
+    },
     "%1$lld Objekte vom iPhone gelöscht · %2$@ frei": {
       "localizations": {
         "en": {
@@ -6228,22 +6248,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ Videos"
-          }
-        }
-      }
-    },
-    "%@ Fotos, %@ Videos": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ Photos, %2$@ Videos"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$@ Fotos, %2$@ Videos"
           }
         }
       }

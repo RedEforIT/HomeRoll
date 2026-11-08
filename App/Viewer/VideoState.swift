@@ -179,6 +179,13 @@ final class VideoState {
                     self.frames = out
                 }
             }
+            // keine Standbilder (z. B. HLS-Ausweichweg, daraus liest AVAssetImageGenerator nichts): wenigstens das
+            // Vorschaubild zeigen statt leerem Streifen (GitHub-Issue #1)
+            if out.isEmpty, let u = ImmichClient.shared.thumbnailURL(want, .preview),
+               let d = try? await ImmichClient.shared.data(u), let img = UIImage(data: d) {
+                out = Array(repeating: img, count: count)
+                if let self, self.id == want { self.frames = out }
+            }
             if let self, self.id == want { self.frames = out }
         }
     }
