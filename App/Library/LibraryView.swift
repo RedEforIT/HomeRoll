@@ -43,6 +43,7 @@ struct LibraryHeader: View {
     let subtitle: String
     @Environment(AppModel.self) private var app
     @Environment(TimelineStore.self) private var timeline
+    @State private var confirmSignOut = false
 
     /// Wie Apple („2 Objekte synchronisieren …“): Backup bzw. fehlende Verbindung statt Datum.
     private var status: String? {
@@ -108,6 +109,11 @@ struct LibraryHeader: View {
         .padding(.top, 2)
         .padding(.bottom, 30)
         .background(alignment: .top) { TopBlur() }
+        // Abmelden löscht Offline-Vorschauen und Zwischenspeicher → vorher nachfragen
+        .confirmationDialog(String(localized: "Abmelden"), isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button(String(localized: "Abmelden"), role: .destructive) { app.signOut(timeline) }
+            Button(String(localized: "Abbrechen"), role: .cancel) {}
+        }
     }
 
     /// Aufbau wie das Fotos-Menü: Sortierung, Darstellungsoptionen, Filter.
@@ -136,6 +142,7 @@ struct LibraryHeader: View {
         } label: { Label(String(localized: "Filter"), systemImage: "line.3.horizontal.decrease.circle") }
         Divider()
         Button(String(localized: "Aktualisieren"), systemImage: "arrow.clockwise") { Task { await timeline.reload() } }
+        Button(String(localized: "Abmelden"), systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { confirmSignOut = true }
     }
 
     private func step(_ dir: Int) {

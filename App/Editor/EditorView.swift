@@ -947,8 +947,11 @@ struct StylePad: View {
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { v in
                     if !active { active = true; onEditing(true) }
-                    color = (max(-1, min(1, (v.location.x - w / 2) / (w / 2 - 12))) * 100).rounded() / 100
-                    tone = (max(-1, min(1, -(v.location.y - h / 2) / (h / 2 - 12))) * 100).rounded() / 100
+                    // in kleine Schritte zerlegt: sonst meldet der Compiler im neuen SDK "ambiguous use of operator"
+                    let nx: CGFloat = max(-1, min(1, (v.location.x - w / 2) / (w / 2 - 12)))
+                    let ny: CGFloat = max(-1, min(1, -(v.location.y - h / 2) / (h / 2 - 12)))
+                    color = Double(nx * 100).rounded() / 100
+                    tone = Double(ny * 100).rounded() / 100
                 }
                 .onEnded { _ in active = false; onEditing(false) })
             .onTapGesture(count: 2) { withAnimation(.snappy) { tone = 0; color = 0 } }

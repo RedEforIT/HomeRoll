@@ -537,7 +537,8 @@ private struct LoopingVideo: UIViewRepresentable {
 /// Apples „Vitality“: einmal die Bewegung bis zum Foto-Zeitpunkt (Mitte des Live-Clips), stumm, dann `done`.
 private struct VitalityVideo: UIViewRepresentable {
     let url: URL
-    let done: () -> Void
+    // @MainActor: der Beobachter läuft auf der Hauptwarteschlange; so gilt der Abschluss als sicher weitergebbar (Swift 6 / neues SDK)
+    let done: @MainActor () -> Void
     func makeUIView(context: Context) -> LoopingVideo.PlayerView {
         let v = LoopingVideo.PlayerView()
         let item = AVPlayerItem(url: url)

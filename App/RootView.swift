@@ -174,11 +174,14 @@ final class SpringLoadWindow: NSObject, UIDropInteractionDelegate {
 
     nonisolated func dropInteraction(_ i: UIDropInteraction, canHandle s: UIDropSession) -> Bool { s.localDragSession != nil }
     nonisolated func dropInteraction(_ i: UIDropInteraction, sessionDidUpdate s: UIDropSession) -> UIDropProposal {
+        // UIDropProposal.init ist im neuen SDK auf den Main Actor beschränkt → hier drinnen erzeugen
         MainActor.assumeIsolated {
-            guard let w = window else { return }; let p = s.location(in: w)
-            report(frames.first { $0.value.insetBy(dx: -8, dy: -8).contains(p) }?.key)
+            if let w = window {
+                let p = s.location(in: w)
+                report(frames.first { $0.value.insetBy(dx: -8, dy: -8).contains(p) }?.key)
+            }
+            return UIDropProposal(operation: .cancel)
         }
-        return UIDropProposal(operation: .cancel)
     }
     nonisolated func dropInteraction(_ i: UIDropInteraction, sessionDidExit s: UIDropSession) { MainActor.assumeIsolated { report(nil) } }
     nonisolated func dropInteraction(_ i: UIDropInteraction, sessionDidEnd s: UIDropSession) { MainActor.assumeIsolated { report(nil) } }
