@@ -36,7 +36,7 @@ struct BucketColumns: Decodable {
 
     func assets() -> [Asset] {
         id.indices.map { i in
-            ImageCache.shared.setHash(id[i], thumbhash?[i] ?? nil)
+            ImageCache.shared.setHash(id[i], thumbhash?[i] ?? nil, video: !isImage[i])
             let utc = DateParsing.wallClock(fileCreatedAt[i]) ?? .distantPast
             let offset = (localOffsetHours?[i] ?? nil) ?? 0
             return Asset(id: id[i],
@@ -121,7 +121,7 @@ struct AssetDTO: Decodable {
     }
 
     var asset: Asset {
-        ImageCache.shared.setHash(id, thumbhash)
+        ImageCache.shared.setHash(id, thumbhash, video: type != "IMAGE")
         let w = width ?? exifInfo?.exifImageWidth ?? 0, h = height ?? exifInfo?.exifImageHeight ?? 0
         return Asset(id: id, isImage: type == "IMAGE", isFavorite: isFavorite,
                      date: DateParsing.wallClock(localDateTime ?? fileCreatedAt) ?? .distantPast,

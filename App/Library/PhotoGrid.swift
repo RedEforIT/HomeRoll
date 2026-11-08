@@ -258,7 +258,7 @@ final class AssetCell: UICollectionViewCell {
         let c = ImageCache.shared, want = id, size = size
         if let i = c.get("\(want)-\(size.rawValue)") { image.image = i; return }
         image.image = (size != .thumbnail ? c.get("\(want)-thumbnail") : nil) ?? c.placeholder(want)
-        guard !c.isMissing(want) else { return }
+        guard c.canLoad(want) else { return }
         task = Task { @MainActor [weak self] in
             if size != .thumbnail, c.get("\(want)-thumbnail") == nil, let t = await c.loadStored(want, .thumbnail),
                let self, self.id == want { self.image.image = t }

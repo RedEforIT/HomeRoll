@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import ImageIO
+import AVFoundation
 
 /// Speicher-Cache für dekodierte Bilder (Platte erledigt URLCache im Client).
 final class ImageCache: @unchecked Sendable {
@@ -11,8 +12,9 @@ final class ImageCache: @unchecked Sendable {
     /// Abmelden: alle Bilder und Fassungen des Kontos vergessen
     func purge() {
         cache.removeAllObjects()
-        lock.withLock { hashes = [:]; missing = []; versions = [:] }
+        lock.withLock { hashes = [:]; missing = []; versions = [:]; videos = []; noFrame = [] }
         UserDefaults.standard.removeObject(forKey: "thumbVersions")
+        try? FileManager.default.removeItem(at: Self.frameFolder)
     }
     /// Fingerabdruck der Server-Vorschau (thumbhash). Ändert er sich (Bearbeitung, auch von anderem Gerät),
     /// bekommt die Vorschau eine neue Adresse → Zwischenspeicher wird umgangen.
@@ -20,11 +22,20 @@ final class ImageCache: @unchecked Sendable {
     /// sondern warten, bis eine neuere Zeitleisten-Antwort den Hash liefert (→ `.thumbChanged`).
     private var hashes: [String: String] = [:]
     private var missing: Set<String> = []
+    /// Videos (für sie gibt es notfalls ein Standbild aus dem Video selbst) und Videos, bei denen auch das scheiterte
+    private var videos: Set<String> = []
+    private var noFrame: Set<String> = []
     /// Bildfassungen nach dem Bearbeiten (gespiegelt aus UserDefaults – `version` läuft für jede Kachel)
     private var versions = (UserDefaults.standard.dictionary(forKey: "thumbVersions") as? [String: String]) ?? [:]
     private let lock = NSLock()
-    func setHash(_ id: String, _ h: String?) {
+    func setHash(_ id: String, _ h: String?, video: Bool = false) {
+        var h = h
+        #if DEBUG
+        // Test: Server ohne Video-Vorschauen nachstellen (Standbild aus dem Video, GitHub-Issue #1)
+        if video, ProcessInfo.processInfo.environment["FOTOS_TEST_NO_VIDEO_THUMBS"] != nil { h = nil }
+        #endif
         lock.lock()
+        if video { videos.insert(id) }
         guard let h else {
             if hashes[id] == nil { missing.insert(id) }
             lock.unlock(); return
@@ -42,6 +53,8 @@ final class ImageCache: @unchecked Sendable {
     }
     func hash(_ id: String) -> String? { lock.lock(); defer { lock.unlock() }; return hashes[id] }
     func isMissing(_ id: String) -> Bool { lock.lock(); defer { lock.unlock() }; return missing.contains(id) }
+    /// Lohnt sich das Laden? Ja, wenn der Server eine Vorschau hat – oder bei Videos (dann notfalls Standbild aus dem Video).
+    func canLoad(_ id: String) -> Bool { lock.withLock { !missing.contains(id) || (videos.contains(id) && !noFrame.contains(id)) } }
 
     /// Unscharfes Sofortbild aus dem thumbhash (≈ 0,1 ms, im Speicher gemerkt).
     func placeholder(_ id: String) -> UIImage? {
@@ -63,7 +76,10 @@ final class ImageCache: @unchecked Sendable {
     func bump(_ id: String) {
         let d = lock.withLock { versions[id] = String(Int(Date().timeIntervalSince1970)); return versions }
         UserDefaults.standard.set(d, forKey: "thumbVersions")
-        for s in ["thumbnail", "preview", "fullsize"] { cache.removeObject(forKey: "\(id)-\(s)" as NSString) }
+        for s in ["thumbnail", "preview", "fullsize"] {
+            cache.removeObject(forKey: "\(id)-\(s)" as NSString)
+            try? FileManager.default.removeItem(at: Self.frameFolder.appendingPathComponent("\(id)-\(s).jpg"))
+        }
         NotificationCenter.default.post(name: .thumbChanged, object: id)
     }
     /// Personenbild neu laden (nach „Als Titelbild für …“); URLSession-Cache umgehen über `v`
@@ -98,12 +114,17 @@ final class ImageCache: @unchecked Sendable {
                 // nur den eigenen Eintrag entfernen (nach einem Abbruch kann schon ein neuer Download laufen)
                 defer { self?.lock.withLock { if self?.inflight[key]?.token == token { self?.inflight.removeValue(forKey: key) } } }
                 if let i = await self?.loadStored(id, size) { return i }
-                guard !Task.isCancelled, let url = ImmichClient.shared.thumbnailURL(id, size),
-                      let data = try? await ImmichClient.shared.data(url) else { return nil }
-                if let k = self?.kind(size), OfflineSync.enabledFlag { OfflineStore.shared.store(k, id, data) }
-                guard let ready = await Task.detached(priority: .userInitiated, operation: { Self.decode(data) }).value else { return nil }
-                self?.set(key, ready)
-                return ready
+                guard !Task.isCancelled, let self else { return nil }
+                if !self.isMissing(id), let url = ImmichClient.shared.thumbnailURL(id, size),
+                   let data = try? await ImmichClient.shared.data(url) {
+                    if let k = self.kind(size), OfflineSync.enabledFlag { OfflineStore.shared.store(k, id, data) }
+                    guard let ready = await Task.detached(priority: .userInitiated, operation: { Self.decode(data) }).value else { return nil }
+                    self.set(key, ready)
+                    return ready
+                }
+                guard !Task.isCancelled, size != .fullsize, let frame = await self.videoFrame(id, size) else { return nil }
+                self.set(key, frame)
+                return frame
             }
             inflight[key] = (t, 1, token)
             return (t, token)
@@ -119,6 +140,42 @@ final class ImageCache: @unchecked Sendable {
         }
     }
     private var inflight: [String: (task: Task<UIImage?, Never>, waiters: Int, token: UUID)] = [:]
+
+    /// Server hat für ein Video kein Vorschaubild (z. B. scheitert dort die Umwandlung, GitHub-Issue #1): Standbild
+    /// selbst aus dem Video holen – Bereichsanfragen, nicht das ganze Video – und auf dem iPhone merken.
+    /// Höchstens zwei gleichzeitig, damit ein Raster voller 4K-Videos die Leitung nicht verstopft.
+    private func videoFrame(_ id: String, _ size: ImmichClient.Size) async -> UIImage? {
+        guard lock.withLock({ videos.contains(id) && !noFrame.contains(id) }) else { return nil }
+        let file = Self.frameFolder.appendingPathComponent("\(id)-\(size.rawValue).jpg")
+        if let d = try? Data(contentsOf: file), let img = UIImage(data: d) { return img }
+        await Self.frameGate.enter()
+        defer { Task { await Self.frameGate.leave() } }
+        guard !Task.isCancelled, let url = ImmichClient.shared.videoURL(id) else { return nil }
+        let gen = AVAssetImageGenerator(asset: ImmichClient.shared.avAsset(url))
+        gen.appliesPreferredTrackTransform = true
+        let edge: CGFloat = size == .thumbnail ? 360 : 1440
+        gen.maximumSize = CGSize(width: edge, height: edge)
+        gen.requestedTimeToleranceBefore = .zero
+        gen.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
+        let cg: CGImage
+        do { cg = try await gen.image(at: CMTime(seconds: 0.5, preferredTimescale: 600)).image } catch {
+            // iOS kann das Video nicht lesen → in dieser Sitzung nicht bei jedem Scrollen erneut versuchen
+            // (nur bei Formatfehlern, nicht wenn bloß das Netz weg war)
+            let ns = error as NSError, net = ns.domain == NSURLErrorDomain
+                || (ns.userInfo[NSUnderlyingErrorKey] as? NSError)?.domain == NSURLErrorDomain
+            if !Task.isCancelled, !net { _ = lock.withLock { noFrame.insert(id) } }
+            return nil
+        }
+        let img = UIImage(cgImage: cg)
+        if let d = img.jpegData(compressionQuality: 0.8) {
+            try? FileManager.default.createDirectory(at: Self.frameFolder, withIntermediateDirectories: true)
+            try? d.write(to: file, options: .atomic)
+        }
+        return img
+    }
+    private static let frameFolder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("videoframes", isDirectory: true)
+    private static let frameGate = FrameGate()
 
     /// Sofort entpacken (im Hintergrund). `byPreparingForDisplay` greift bei WebP-Vorschauen nicht –
     /// dann dekodierte der Hauptthread beim Anzeigen (Profiler: VP8 auf dem Main-Thread).
@@ -186,8 +243,9 @@ struct AssetThumb: View {
                 if let cached = cache.get("\(id)-\(size.rawValue)") { image = cached; return }
                 if size != .thumbnail { image = await cache.loadStored(id, .thumbnail) }
                 if image == nil { blur = cache.placeholder(id) }
-                // Noch keine Vorschau auf dem Server → nicht anfragen; `.thumbChanged` meldet, wenn sie da ist.
-                if cache.isMissing(id) { return }
+                // Noch keine Vorschau auf dem Server → nicht anfragen (außer Videos: Standbild aus dem Video);
+                // `.thumbChanged` meldet, wenn sie da ist.
+                if !cache.canLoad(id) { return }
                 for attempt in 0..<2 {
                     if let img = await cache.load(id, size) {
                         withAnimation(.easeOut(duration: 0.15)) { image = img }
@@ -294,4 +352,17 @@ struct PersonThumb: View {
 
 extension Notification.Name {
     static let thumbChanged = Notification.Name("thumbChanged")
+}
+
+/// Zählt gleichzeitige Standbild-Abrufe aus Videos (höchstens zwei).
+private actor FrameGate {
+    private var free = 2
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    func enter() async {
+        if free > 0 { free -= 1; return }
+        await withCheckedContinuation { waiting.append($0) }
+    }
+    func leave() {
+        if waiting.isEmpty { free += 1 } else { waiting.removeFirst().resume() }
+    }
 }
