@@ -141,6 +141,23 @@ tools/        icon generator
 
 ---
 
+<!-- home-apps:start -->
+## More Home apps
+
+Same idea, other Apple apps – all free, open source and self-hosted:
+
+- **[HomeRoll Desktop](https://github.com/silentprovider423/HomeRoll-Desk)** – Photos for Mac · Immich
+- **[HomeRoll TV](https://github.com/silentprovider423/HomeRoll-TV)** – Photos for Apple TV · Immich
+- **[HomeTune](https://github.com/silentprovider423/HomeTune)** – Music · Navidrome
+- **[HomeNotes](https://github.com/silentprovider423/HomeNotes)** – Notes · Nextcloud
+- **[HomePost](https://github.com/silentprovider423/HomePost)** – Mail · IMAP/SMTP or JMAP
+- **[HomeFind](https://github.com/silentprovider423/HomeFind)** – Find My · Dawarich
+- **[HomeCast](https://github.com/silentprovider423/HomeCast)** – Podcasts · PinePods
+- **[HomeThread](https://github.com/silentprovider423/HomeThread)** – notes to self · own server (Docker)
+
+All apps: [github.com/silentprovider423](https://github.com/silentprovider423)
+<!-- home-apps:end -->
+
 ## Deutsch
 
 **HomeRoll** ist eine eigene iPhone-Fotos-App für deinen selbst betriebenen Immich-Server. Sie sieht aus und fühlt sich an wie Apples Fotos-App unter iOS 26, aber alle Fotos bleiben auf deiner eigenen Hardware, ohne iCloud. Die Oberfläche gibt es auf Deutsch und Englisch, je nach Sprache des iPhones. Funktionen, Voraussetzungen und Installation stehen oben.
