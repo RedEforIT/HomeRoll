@@ -128,6 +128,15 @@ struct ViewerView: View {
             }
             Menu {
                 AssetMenu(assets: [a], style: .viewer, present: { sheet = $0 }) { removeLocal(a) }
+                if a.isVideo {
+                    // Für Fehlerberichte (GitHub-Issue #1): was die App angefragt hat, Antworten, Codec, Zeiten
+                    Button(String(localized: "Video-Diagnose kopieren"), systemImage: "stethoscope") {
+                        Task {
+                            UIPasteboard.general.string = await video.diagnostics(a)
+                            app.toast(String(localized: "Diagnose kopiert"))
+                        }
+                    }
+                }
             } label: {
                 Image(systemName: "ellipsis").font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white).frame(width: 46, height: 46).contentShape(.rect)

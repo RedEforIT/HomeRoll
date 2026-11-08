@@ -54,7 +54,9 @@ final class ImageCache: @unchecked Sendable {
     func hash(_ id: String) -> String? { lock.lock(); defer { lock.unlock() }; return hashes[id] }
     func isMissing(_ id: String) -> Bool { lock.lock(); defer { lock.unlock() }; return missing.contains(id) }
     /// Lohnt sich das Laden? Ja, wenn der Server eine Vorschau hat – oder bei Videos (dann notfalls Standbild aus dem Video).
-    func canLoad(_ id: String) -> Bool { lock.withLock { !missing.contains(id) || (videos.contains(id) && !noFrame.contains(id)) } }
+    func canLoad(_ id: String) -> Bool {
+        lock.withLock { !missing.contains(id) || (videos.contains(id) && (!noFrame.contains(id) || LocalCopy.allowed)) }
+    }
 
     /// Unscharfes Sofortbild aus dem thumbhash (≈ 0,1 ms, im Speicher gemerkt).
     func placeholder(_ id: String) -> UIImage? {
@@ -141,29 +143,38 @@ final class ImageCache: @unchecked Sendable {
     }
     private var inflight: [String: (task: Task<UIImage?, Never>, waiters: Int, token: UUID)] = [:]
 
-    /// Server hat für ein Video kein Vorschaubild (z. B. scheitert dort die Umwandlung, GitHub-Issue #1): Standbild
-    /// selbst aus dem Video holen – Bereichsanfragen, nicht das ganze Video – und auf dem iPhone merken.
-    /// Höchstens zwei gleichzeitig, damit ein Raster voller 4K-Videos die Leitung nicht verstopft.
+    /// Server hat für ein Video kein Vorschaubild (z. B. scheitert dort die Umwandlung, GitHub-Issue #1):
+    /// 1. vom iPhone, wenn das Video auch dort liegt (wie die Immich-App), 2. Standbild selbst aus dem Video holen –
+    /// Wiedergabedatei, sonst Original; Bereichsanfragen, nicht das ganze Video – und auf dem iPhone merken.
+    /// Höchstens zwei Server-Abrufe gleichzeitig, damit ein Raster voller 4K-Videos die Leitung nicht verstopft.
     private func videoFrame(_ id: String, _ size: ImmichClient.Size) async -> UIImage? {
-        guard lock.withLock({ videos.contains(id) && !noFrame.contains(id) }) else { return nil }
+        guard lock.withLock({ videos.contains(id) }) else { return nil }
+        let edge: CGFloat = size == .thumbnail ? 360 : 1440
+        if let img = await LocalCopy.image(id, edge: edge) { return img }
+        guard lock.withLock({ !noFrame.contains(id) }) else { return nil }
         let file = Self.frameFolder.appendingPathComponent("\(id)-\(size.rawValue).jpg")
         if let d = try? Data(contentsOf: file), let img = UIImage(data: d) { return img }
         await Self.frameGate.enter()
         defer { Task { await Self.frameGate.leave() } }
-        guard !Task.isCancelled, let url = ImmichClient.shared.videoURL(id) else { return nil }
-        let gen = AVAssetImageGenerator(asset: ImmichClient.shared.avAsset(url))
-        gen.appliesPreferredTrackTransform = true
-        let edge: CGFloat = size == .thumbnail ? 360 : 1440
-        gen.maximumSize = CGSize(width: edge, height: edge)
-        gen.requestedTimeToleranceBefore = .zero
-        gen.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
-        let cg: CGImage
-        do { cg = try await gen.image(at: CMTime(seconds: 0.5, preferredTimescale: 600)).image } catch {
+        var cg: CGImage?, unreadable = true
+        for url in [ImmichClient.shared.videoURL(id), ImmichClient.shared.originalURL(id)].compactMap({ $0 }) {
+            guard !Task.isCancelled else { return nil }
+            let gen = AVAssetImageGenerator(asset: ImmichClient.shared.avAsset(url))
+            gen.appliesPreferredTrackTransform = true
+            gen.maximumSize = CGSize(width: edge, height: edge)
+            gen.requestedTimeToleranceBefore = .zero
+            gen.requestedTimeToleranceAfter = CMTime(seconds: 2, preferredTimescale: 600)
+            do { cg = try await gen.image(at: CMTime(seconds: 0.5, preferredTimescale: 600)).image; break } catch {
+                let ns = error as NSError
+                if ns.domain == NSURLErrorDomain || (ns.userInfo[NSUnderlyingErrorKey] as? NSError)?.domain == NSURLErrorDomain {
+                    unreadable = false
+                }
+            }
+        }
+        guard let cg else {
             // iOS kann das Video nicht lesen → in dieser Sitzung nicht bei jedem Scrollen erneut versuchen
             // (nur bei Formatfehlern, nicht wenn bloß das Netz weg war)
-            let ns = error as NSError, net = ns.domain == NSURLErrorDomain
-                || (ns.userInfo[NSUnderlyingErrorKey] as? NSError)?.domain == NSURLErrorDomain
-            if !Task.isCancelled, !net { _ = lock.withLock { noFrame.insert(id) } }
+            if !Task.isCancelled, unreadable { _ = lock.withLock { noFrame.insert(id) } }
             return nil
         }
         let img = UIImage(cgImage: cg)

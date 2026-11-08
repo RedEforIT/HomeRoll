@@ -85,6 +85,7 @@ struct AssetDTO: Decodable {
     let duration: Int?               // Millisekunden (v3), null bei Fotos
     let livePhotoVideoId: String?
     let originalFileName: String?
+    let originalMimeType: String?
     let exifInfo: ExifDTO?
     let createdAt: String?
     let ownerId: String?

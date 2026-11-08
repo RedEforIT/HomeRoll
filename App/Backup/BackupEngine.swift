@@ -68,8 +68,14 @@ final class BackupEngine {
     var background = 0
 
     private var task: Task<Void, Never>?
-    private var state: [String: Entry] = [:]
+    private var state: [String: Entry] = [:] { didSet { byRemote = nil } }
     private var stateUser = ""
+    /// Server-ID → iPhone-Foto (für „lokale Kopie bevorzugen“, LocalCopy); nach jeder Änderung neu gebaut
+    @ObservationIgnored private var byRemote: [String: String]?
+    func localID(forRemote id: String) -> String? {
+        if byRemote == nil { byRemote = Dictionary(state.map { ($0.value.remote, $0.key) }, uniquingKeysWith: { a, _ in a }) }
+        return byRemote?[id]
+    }
 
     /// `tagged`: Kategorie-Tags (Bildschirmfotos, Panoramen …) sind sicher auf dem Server; nil = noch nachholen.
     struct Entry: Codable { var remote: String; var edited: String?; var tagged: Bool? }

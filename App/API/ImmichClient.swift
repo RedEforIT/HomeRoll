@@ -647,6 +647,29 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     /// Beim Start einmal fragen, ob der Server Echtzeit-Umwandlung kann (spart die Wartezeit, wenn ein Video den Ausweichweg braucht).
     func prepareVideo() async { _ = await realtimeTranscoding() }
 
+    /// Für die Video-Diagnose: Server kann Echtzeit-Umwandlung (HLS)?
+    func serverRealtime() async -> Bool { await realtimeTranscoding() }
+
+    /// Für die Video-Diagnose: Status, Typ, Größe und Antwortzeit einer Adresse (lädt nur die ersten zwei Bytes).
+    func probe(_ url: URL) async -> String {
+        var req = URLRequest(url: url, timeoutInterval: 30)
+        req.setValue("bytes=0-1", forHTTPHeaderField: "Range")
+        for (k, v) in authHeaders { req.setValue(v, forHTTPHeaderField: k) }
+        let t = Date()
+        let ms = { "\(Int(Date().timeIntervalSince(t) * 1000)) ms" }
+        do {
+            let (_, resp) = try await session.data(for: req)
+            guard let h = resp as? HTTPURLResponse else { return "no http response, \(ms())" }
+            let total = h.value(forHTTPHeaderField: "Content-Range")?.split(separator: "/").last.map(String.init)
+                ?? h.value(forHTTPHeaderField: "Content-Length") ?? "?"
+            let size = Double(total).map { $0 < 1_000_000 ? String(format: "%.0f KB", $0 / 1000) : String(format: "%.1f MB", $0 / 1_000_000) } ?? total
+            return "\(h.statusCode) \(h.value(forHTTPHeaderField: "Content-Type") ?? "?") \(size), \(ms())"
+        } catch {
+            let e = error as NSError
+            return "error \(e.domain) \(e.code), \(ms())"
+        }
+    }
+
     private func realtimeTranscoding() async -> Bool {
         if let v = videoLock.withLock({ realtimeHLS }) { return v }
         struct Features: Decodable { let realtimeTranscoding: Bool? }

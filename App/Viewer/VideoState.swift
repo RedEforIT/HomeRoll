@@ -25,6 +25,14 @@ final class VideoState {
     @ObservationIgnored private var timeObserver: Any?
     @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored private var framesTask: Task<Void, Never>?
+    /// play() kam, bevor der Player stand (lokale Kopie wird noch gesucht)
+    @ObservationIgnored private var pendingPlay = false
+    // Video-Diagnose (… → „Video-Diagnose kopieren“, GitHub-Issue #1): was wann passiert ist
+    @ObservationIgnored private var started = Date()
+    @ObservationIgnored private var log: [String] = []
+    @ObservationIgnored private var watchers: [NSKeyValueObservation] = []
+    @ObservationIgnored private var stallObserver: NSObjectProtocol?
+    @ObservationIgnored private var source = ""
 
     /// Neues Video zeigen (alter Player wird angehalten und freigegeben).
     func attach(_ asset: Asset) {
@@ -32,8 +40,28 @@ final class VideoState {
         stop()
         id = asset.id
         duration = Double(asset.durationMs ?? 0) / 1000
+        started = Date(); log = []; source = ""
+        note("open video, \(Int(duration)) s")
+        // Liegt das Video auch auf diesem iPhone, spielt es von dort (wie die Immich-App und Apple): sofort da,
+        // egal ob der Server es umwandeln kann
+        guard LocalCopy.allowed else { note("no photo access, using server"); beginServer(asset); return }
+        let want = asset.id
+        Task { [weak self] in
+            let local = await LocalCopy.video(want)
+            guard let self, self.id == want else { return }
+            if let local { self.source = "local copy on this iPhone"; self.note("source: local copy on this iPhone"); self.begin(asset, av: local, local: true) }
+            else { self.note("no local copy on this iPhone"); self.beginServer(asset) }
+        }
+    }
+
+    private func beginServer(_ asset: Asset) {
         guard let url = ImmichClient.shared.videoURL(asset.id) else { return }
-        let av = ImmichClient.shared.avAsset(url)
+        source = url.path()
+        note("source: \(url.path())")
+        begin(asset, av: ImmichClient.shared.avAsset(url), local: false)
+    }
+
+    private func begin(_ asset: Asset, av: AVURLAsset, local: Bool) {
         let p = AVPlayer(playerItem: AVPlayerItem(asset: av))
         p.isMuted = muted
         player = p
@@ -45,13 +73,18 @@ final class VideoState {
             }
         }
         observeEnd(p)
+        watch(p)
         loadFrames(av)
         let want = asset.id
         Task { [weak self] in
             // Normalfall sofort abspielen; erst wenn iOS die Datei nicht dekodieren kann, Ausweichweg suchen
-            guard (try? await av.load(.isPlayable)) == false else { return }
+            let playable = try? await av.load(.isPlayable)
+            self?.note("playable: \(playable.map { String($0) } ?? "unknown")")
+            guard !local, playable == false else { return }
             let alt = await ImmichClient.shared.playableFallback(for: want)
             guard let self, self.id == want, let p = self.player else { return }
+            self.note("fallback: \(alt?.url.path() ?? "none found")")
+            if let alt { self.source = alt.url.path() }
             guard let alt else { self.unplayable = true; self.pause(); return }
             p.replaceCurrentItem(with: AVPlayerItem(asset: alt))
             self.observeEnd(p)
@@ -66,6 +99,7 @@ final class VideoState {
             let original = p.currentItem
             let slow = SlowMo.item(comp)
             p.replaceCurrentItem(with: slow)
+            self.note("slo-mo x\(s.factor)")
             self.slowMo = s
             self.duration = (try? await comp.load(.duration).seconds) ?? self.duration
             self.observeEnd(p)
@@ -80,6 +114,7 @@ final class VideoState {
             self.observeEnd(p)
             if self.playing { p.play() }
         }
+        if pendingPlay { pendingPlay = false; play() }
     }
 
     private func observeEnd(_ p: AVPlayer) {
@@ -90,7 +125,7 @@ final class VideoState {
     }
 
     func play() {
-        guard let p = player else { return }
+        guard let p = player else { pendingPlay = true; return }
         if !muted { PlaybackAudioSession.activate() }
         // am Ende: von vorn (wie Apple)
         if duration > 0, time >= duration - 0.15 { p.seek(to: .zero); time = 0 }
@@ -155,8 +190,85 @@ final class VideoState {
         if let e = endObserver { NotificationCenter.default.removeObserver(e) }
         timeObserver = nil; endObserver = nil
         framesTask?.cancel(); framesTask = nil
-        player = nil; playing = false; time = 0; frames = []; id = ""; slowMo = nil; unplayable = false
+        player = nil; playing = false; time = 0; frames = []; id = ""; slowMo = nil; unplayable = false; pendingPlay = false
         seeking = false; pendingSeek = nil; scrubbing = false
+        watchers = []
+        if let o = stallObserver { NotificationCenter.default.removeObserver(o) }
+        stallObserver = nil
+    }
+
+    // MARK: Video-Diagnose
+
+    private func note(_ s: String) {
+        log.append(String(format: "%6.1fs  ", Date().timeIntervalSince(started)) + s)
+        if log.count > 200 { log.removeFirst() }
+    }
+
+    /// Mitschreiben, wann der Player bereit ist, wartet, spielt oder hängt.
+    private func watch(_ p: AVPlayer) {
+        watchers = [
+            p.observe(\.timeControlStatus, options: [.new]) { [weak self] p, _ in
+                let s = p.timeControlStatus, why = p.reasonForWaitingToPlay?.rawValue ?? "-"
+                MainActor.assumeIsolated {
+                    self?.note(s == .playing ? "player: playing" : s == .paused ? "player: paused" : "player: waiting (\(why))")
+                }
+            },
+            p.observe(\.currentItem?.status, options: [.new]) { [weak self] p, _ in
+                let st = p.currentItem?.status, err = p.currentItem?.error?.localizedDescription
+                MainActor.assumeIsolated {
+                    if st == .readyToPlay { self?.note("item: ready to play") }
+                    if st == .failed { self?.note("item: failed \(err ?? "")") }
+                }
+            },
+        ]
+        if let o = stallObserver { NotificationCenter.default.removeObserver(o) }
+        stallObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemPlaybackStalled, object: nil, queue: .main) { [weak self, weak p] n in
+            let stalled = (n.object as AnyObject?).map { ObjectIdentifier($0) }
+            MainActor.assumeIsolated {
+                guard let p, let item = p.currentItem, stalled == ObjectIdentifier(item) else { return }
+                self?.note("stalled at \(String(format: "%.1f", p.currentTime().seconds)) s")
+            }
+        }
+    }
+
+    /// Bericht zum Einfügen ins GitHub-Issue: App/Gerät, Server, Antworten der Adressen (nur Pfade, keine Serveradresse,
+    /// kein Token), Videospur und was beim Abspielen passiert ist.
+    func diagnostics(_ asset: Asset) async -> String {
+        let api = ImmichClient.shared
+        let info = Bundle.main.infoDictionary
+        var u = utsname(); uname(&u)
+        let model = withUnsafeBytes(of: &u.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        var out = ["HomeRoll \(info?["CFBundleShortVersionString"] ?? "?") (\(info?["CFBundleVersion"] ?? "?")), iOS \(UIDevice.current.systemVersion), \(model)"]
+        struct Version: Decodable { let major: Int; let minor: Int; let patch: Int }
+        if let v: Version = try? await api.request("server/version") { out.append("server: immich \(v.major).\(v.minor).\(v.patch)") }
+        out.append("realtime transcoding: \(await api.serverRealtime() ? "on" : "off")")
+        out.append("photo access: \(LocalCopy.accessText), local copy: \(await LocalCopy.asset(asset.id) != nil ? "found" : "not found")")
+        if let d = try? await api.asset(asset.id) {
+            let size = d.exifInfo?.fileSizeInByte.map { String(format: "%.1f MB", Double($0) / 1_000_000) } ?? "?"
+            out.append("asset: \(d.originalMimeType ?? "?"), \(size), \((d.duration ?? 0) / 1000) s, thumbhash \(d.thumbhash == nil ? "missing" : "ok")")
+        }
+        out.append("")
+        var probes: [(String, URL?)] = [("thumbnail", api.thumbnailURL(asset.id, .thumbnail)), ("preview", api.thumbnailURL(asset.id, .preview)),
+                                        ("playback", try? api.url("assets/\(asset.id)/video/playback")), ("original", api.originalURL(asset.id))]
+        if await api.serverRealtime() { probes.append(("hls main", try? api.url("assets/\(asset.id)/video/stream/main.m3u8"))) }
+        for (name, url) in probes {
+            guard let url else { continue }
+            out.append("\(name): \(await api.probe(url))")
+        }
+        if let a = player?.currentItem?.asset, let t = try? await a.loadTracks(withMediaType: .video).first {
+            let fmt = (try? await t.load(.formatDescriptions))?.first.map { d -> String in
+                let c = CMFormatDescriptionGetMediaSubType(d).bigEndian
+                return withUnsafeBytes(of: c) { String(decoding: $0, as: UTF8.self) }
+            } ?? "?"
+            let sz = (try? await t.load(.naturalSize)) ?? .zero, fps = (try? await t.load(.nominalFrameRate)) ?? 0
+            let hdr = (try? await t.load(.mediaCharacteristics))?.contains(.containsHDRVideo) == true
+            out.append("video track: \(fmt) \(Int(sz.width))x\(Int(sz.height)) \(Int(fps.rounded())) fps\(hdr ? " hdr" : "")")
+        }
+        out.append("playing from: \(source.isEmpty ? "-" : source)")
+        out.append("")
+        out += log
+        // Pfade enthalten nur die Objekt-ID; trotzdem keine Serveradresse mitgeben
+        return "```\n" + out.joined(separator: "\n") + "\n```"
     }
 
     /// ~14 Standbilder gleichmäßig über das Video (Bereichsanfragen an den Server, nicht das ganze Video).

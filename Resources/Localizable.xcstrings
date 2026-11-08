@@ -12,6 +12,26 @@
         }
       }
     },
+    "Diagnose kopiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diagnostics copied"
+          }
+        }
+      }
+    },
+    "Video-Diagnose kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Video Diagnostics"
+          }
+        }
+      }
+    },
     "1 Foto": {
       "localizations": {
         "en": {

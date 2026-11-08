@@ -1,4 +1,5 @@
 import CoreSpotlight
+import Photos
 import SwiftUI
 
 @main
@@ -11,6 +12,10 @@ struct FotosApp: App {
         BackupEngine.registerBackgroundTask()
         BackgroundUploader.shared.reconnect()   // Ergebnisse von Übertragungen aus früheren Sitzungen abholen
         PerfLog.start()
+        #if DEBUG
+        // Simulator-Test „lokale Kopie bevorzugen“: simctl kann vollen Fotozugriff nicht setzen → Systemdialog
+        if ProcessInfo.processInfo.environment["FOTOS_TEST_ASK_PHOTOS"] != nil { PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in } }
+        #endif
     }
 
     var body: some Scene {
@@ -74,7 +79,7 @@ final class AppModel {
     var loggedIn = ImmichClient.shared.isLoggedIn
     /// Abmelden (Konto-Menü, oder „Server nicht erreichbar“ in der Mediathek → anderen Server wählen)
     func signOut(_ timeline: TimelineStore) {
-        ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear()
+        ImmichClient.shared.logout(); timeline.clearCache(); MemoryCenter.shared.reset(); SpotlightIndex.clear(); LocalCopy.reset()
         // alles vom Konto vom Gerät löschen: Offline-Vorschauen, Bild-Speicher, Widget-Bilder (GitHub-Issue #8)
         OfflineSync.shared.stop(); OfflineStore.shared.clear(); ImageCache.shared.purge()
         if let w = WidgetSnapshot.folder { try? FileManager.default.removeItem(at: w) }
