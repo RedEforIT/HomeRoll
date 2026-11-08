@@ -137,7 +137,7 @@ tools/        icon generator
 
 ## License
 
-[MIT](LICENSE). Third-party: Immich (AGPL-3.0) is not included – HomeRoll only talks to its HTTP API. The Clean Up service downloads the LaMa model (Apache-2.0) at build time.
+[GPL-3.0](LICENSE) (GNU General Public License v3.0; releases up to this change were published under MIT). Third-party: Immich (AGPL-3.0) is not included – HomeRoll only talks to its HTTP API. The Clean Up service downloads the LaMa model (Apache-2.0) at build time.
 
 ---
 
