@@ -43,7 +43,8 @@ struct ShareLinkOptions {
     var expiry: ShareExpiry = .day30
     var customDate = Date().addingTimeInterval(7 * 86400)
     var showMetadata = false
-    var allowDownload = true
+    /// Immich erlaubt Herunterladen nur zusammen mit Metadaten (beim Anlegen erzwungen) → hier genauso
+    var allowDownload = false
     var allowUpload = false
     var slug = ""
 
@@ -68,7 +69,7 @@ struct ShareLinkOptions {
         if let raw = d.string(forKey: key + ".expiry"), let e = ShareExpiry(rawValue: raw), e != .custom { o.expiry = e }
         if d.object(forKey: key + ".meta") != nil { o.showMetadata = d.bool(forKey: key + ".meta") }
         if d.object(forKey: key + ".download") != nil { o.allowDownload = d.bool(forKey: key + ".download") }
-        if d.object(forKey: key + ".upload") != nil { o.allowUpload = d.bool(forKey: key + ".upload") }
+        if !o.showMetadata { o.allowDownload = false }
         return o
     }
 
@@ -77,7 +78,6 @@ struct ShareLinkOptions {
         if expiry != .custom { d.set(expiry.rawValue, forKey: Self.key + ".expiry") }
         d.set(showMetadata, forKey: Self.key + ".meta")
         d.set(allowDownload, forKey: Self.key + ".download")
-        d.set(allowUpload, forKey: Self.key + ".upload")
     }
 }
 
@@ -151,8 +151,12 @@ struct ShareLinkFields: View {
         }
         Section {
             Toggle(String(localized: "Metadaten für Empfänger zeigen"), isOn: $o.showMetadata)
+                .onChange(of: o.showMetadata) { _, on in if !on { o.allowDownload = false } }
             Toggle(String(localized: "Empfänger dürfen herunterladen"), isOn: $o.allowDownload)
-            Toggle(String(localized: "Empfänger dürfen hochladen"), isOn: $o.allowUpload)
+                .disabled(!o.showMetadata)
+            // „Hochladen“ gibt es nur bei Album-Links (wohin sonst?) – Immich zeigt es bei Einzel-Links auch nicht
+        } footer: {
+            Text(String(localized: "Herunterladen geht nur zusammen mit Metadaten (Ort, Kamera, Datum) – so verlangt es Immich."))
         }
         Section {
             TextField(String(localized: "Eigener Linkname (optional)"), text: $o.slug)
@@ -185,7 +189,6 @@ private struct SharedLinkRow: View {
             HStack(spacing: 10) {
                 if link.hasPassword { Image(systemName: "lock.fill") }
                 if link.allowDownload ?? false { Image(systemName: "arrow.down.circle") }
-                if link.allowUpload ?? false { Image(systemName: "arrow.up.circle") }
                 if link.showMetadata ?? false { Image(systemName: "info.circle") }
             }
             .font(.footnote).foregroundStyle(.secondary)

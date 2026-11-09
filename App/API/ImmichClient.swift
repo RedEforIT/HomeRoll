@@ -235,23 +235,10 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         return p.people.filter { !($0.isHidden ?? false) }
     }
     func mapMarkers() async throws -> [MapMarkerDTO] { try await request("map/markers") }
-    /// Freigabelink (ohne Anmeldung aufrufbar) – Adresse aus der Server-Einstellung „externe Domain“.
-    func shareLink(_ ids: [String], days: Int = 30) async throws -> URL? {
-        struct Link: Decodable { let key: String }
-        struct Config: Decodable { let externalDomain: String? }
-        let exp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(Double(days) * 86400))
-        let l: Link = try await request("shared-links", method: "POST", body: json(["type": "INDIVIDUAL", "assetIds": ids,
-                                                                                  "allowDownload": true, "showMetadata": false,
-                                                                                  "expiresAt": exp] as [String: Any]))
-        let cfg: Config? = try? await request("server/config")
-        let base = cfg?.externalDomain.flatMap { $0.isEmpty ? nil : URL(string: $0) } ?? baseURL
-        return base?.appendingPathComponent("share").appendingPathComponent(l.key)
-    }
     /// Freigabelink mit allen Optionen aus Immichs Dialog (Beschreibung, Passwort, Ablauf, Metadaten, Herunterladen,
     /// Hochladen, eigener Name). Mit Namen lautet die Adresse …/s/<name>, sonst …/share/<Schlüssel>.
     func createShareLink(_ ids: [String], options o: ShareLinkOptions) async throws -> URL {
         struct Link: Decodable { let key: String; let slug: String? }
-        struct Config: Decodable { let externalDomain: String? }
         var body: [String: Any] = ["type": "INDIVIDUAL", "assetIds": ids, "allowDownload": o.allowDownload,
                                    "allowUpload": o.allowUpload, "showMetadata": o.showMetadata]
         let text = o.description.trimmingCharacters(in: .whitespacesAndNewlines)

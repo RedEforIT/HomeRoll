@@ -6822,16 +6822,6 @@
         }
       }
     },
-    "Empfänger dürfen hochladen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allow recipients to upload"
-          }
-        }
-      }
-    },
     "Eigener Linkname (optional)": {
       "localizations": {
         "en": {
@@ -6858,6 +6848,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "That link name is already taken."
+          }
+        }
+      }
+    },
+    "Herunterladen geht nur zusammen mit Metadaten (Ort, Kamera, Datum) – so verlangt es Immich.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads only work together with metadata (location, camera, date) – that's how Immich does it."
           }
         }
       }
