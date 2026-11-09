@@ -52,9 +52,13 @@ final class GridCollectionView: UICollectionView {
     /// Fußzeile unter dem letzten Objekt (Mediathek: Anzahl + Backup-Stand), liegt im unteren Abstand
     var footer: UIView?
     var footerHeight: CGFloat = 0
+    /// Nach jedem Anordnen: oberste Reihe neu bestimmen (Datum in der Überschrift). Beim ersten Sprung ans Ende kam
+    /// das Scroll-Ereignis, bevor die Zellen standen → Überschrift zeigte nach dem Neustart das älteste Datum (#15).
+    var onLayout: (() -> Void)?
     override func layoutSubviews() {
         super.layoutSubviews()
         if let f = footer { f.frame = CGRect(x: 0, y: contentSize.height + 6, width: bounds.width, height: footerHeight) }
+        defer { onLayout?() }
         guard let (index, anchor) = pending, bounds.width > 0 else { return }
         let n = numberOfItems(inSection: 0)
         guard n > 0 else { return }
@@ -369,6 +373,7 @@ struct PhotoGrid: UIViewRepresentable {
         v.alwaysBounceVertical = true
         let c = context.coordinator
         c.view = v; c.layout = layout; controller.view = v
+        v.onLayout = { [weak c] in c?.checkTop() }
         c.columns = columns; layout.columns = columns
         layout.ratio = { [weak c] i in
             guard let c, i < c.parent.items.count, case .asset(let a, _) = c.parent.items[i] else { return 1 }
@@ -712,14 +717,17 @@ struct PhotoGrid: UIViewRepresentable {
             extendSwipe()
         }
 
-        func scrollViewDidScroll(_ sv: UIScrollView) {
+        func scrollViewDidScroll(_ sv: UIScrollView) { checkTop() }
+
+        func checkTop() {
             guard let i = topIndex(), i != lastTop else { return }
             lastTop = i; parent.onTop(i)
         }
 
         func topIndex() -> Int? {
             guard let v = view else { return nil }
-            let y = v.contentOffset.y + v.contentInset.top + 110      // unter der Überschrift
+            // Reihe direkt unter der Überschrift (≈ 120 pt ab Oberkante, unabhängig vom oberen Abstand)
+            let y = v.contentOffset.y + 120
             return v.indexPathForItem(at: CGPoint(x: 4, y: y))?.item
                 ?? v.indexPathsForVisibleItems.map(\.item).min()
         }

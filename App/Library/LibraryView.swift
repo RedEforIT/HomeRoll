@@ -229,7 +229,7 @@ struct AllGrid: View {
         let items = cells
         let app = self.app, timeline = self.timeline, query = self.query
         PhotoGrid(items: items, columns: app.columns,
-                  topInset: app.libraryCustomized ? 120 : 0, controller: grid,
+                  topInset: 120, controller: grid,
                   fit: app.aspectGrid, selection: app.selecting ? app.selected : nil, highlight: highlight, me: app.userID,
                   onTop: { i in
                       guard i < items.count else { return }
