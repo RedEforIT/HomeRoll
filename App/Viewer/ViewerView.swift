@@ -567,75 +567,8 @@ private struct VitalityVideo: UIViewRepresentable {
     final class Coord { var player: AVPlayer?; var end: NSObjectProtocol? }
 }
 
-/// Geteiltes Album wie bei Apple: „Gefällt mir“ und Kommentare zum Foto (Immich-Aktivitäten).
-private struct AlbumActivityView: View {
-    let album: AlbumDTO
-    let assetId: String
-    @Environment(AppModel.self) private var app
-    @State private var items: [ActivityDTO] = []
-    @State private var draft = ""
-    @State private var sending = false
-
-    private var likes: [ActivityDTO] { items.filter { $0.type == "like" } }
-    private var comments: [ActivityDTO] { items.filter { $0.type == "comment" } }
-    private var myLike: ActivityDTO? { likes.first { $0.user.id == app.userID } }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("„\(album.albumName)“").font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
-                Spacer()
-                Button { Task { await toggleLike() } } label: {
-                    Label(likes.isEmpty ? String(localized: "Gefällt mir") : "\(likes.count)", systemImage: myLike == nil ? "hand.thumbsup" : "hand.thumbsup.fill")
-                        .font(.system(size: 15, weight: .medium))
-                }
-                .accessibilityLabel(myLike == nil ? String(localized: "Gefällt mir") : String(localized: "Gefällt mir nicht mehr"))
-            }
-            ForEach(comments) { c in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(c.user.name).font(.system(size: 13, weight: .semibold))
-                    Text(c.comment ?? "").font(.system(size: 15))
-                }
-                .contextMenu {
-                    if c.user.id == app.userID {
-                        Button(String(localized: "Kommentar löschen"), systemImage: "trash", role: .destructive) { Task { await remove(c) } }
-                    }
-                }
-            }
-            HStack {
-                TextField(String(localized: "Kommentar hinzufügen"), text: $draft, axis: .vertical).textFieldStyle(.roundedBorder)
-                Button(String(localized: "Senden")) { Task { await send() } }
-                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || sending)
-            }
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(white: 0.12)))
-        .task { items = (try? await ImmichClient.shared.activities(album: album.id, asset: assetId)) ?? [] }
-    }
-
-    private func toggleLike() async {
-        if let l = myLike {
-            try? await ImmichClient.shared.deleteActivity(l.id); items.removeAll { $0.id == l.id }
-        } else if let a = try? await ImmichClient.shared.addActivity(album: album.id, asset: assetId, comment: nil) {
-            items.append(a)
-        }
-    }
-    private func send() async {
-        let t = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return }
-        sending = true; defer { sending = false }
-        if let a = try? await ImmichClient.shared.addActivity(album: album.id, asset: assetId, comment: t) { items.append(a); draft = "" }
-        else { app.toast(String(localized: "Kommentar nicht gesendet")) }
-    }
-    private func remove(_ c: ActivityDTO) async {
-        try? await ImmichClient.shared.deleteActivity(c.id); items.removeAll { $0.id == c.id }
-    }
-}
-
-/// Info wie in Fotos: Untertitel, Datum + Dateiname, Kamera-Karte, Karte mit „Anpassen“.
 private struct InfoSheet: View {
     let asset: Asset
-    /// nil = nichts zum Nachschlagen im Foto
     var lookUp: (() -> Void)? = nil
     @Environment(AppModel.self) private var app
     @State private var dto: AssetDTO?
@@ -649,56 +582,59 @@ private struct InfoSheet: View {
 
     var body: some View {
         NavigationStack {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                if let lookUp {
-                    Button(action: lookUp) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "sparkle.magnifyingglass").font(.system(size: 20)).foregroundStyle(.blue)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(String(localized: "Nachschlagen")).font(.system(size: 16, weight: .semibold))
-                                Text(String(localized: "Pflanze, Tier, Sehenswürdigkeit oder Kunstwerk im Foto")).font(.system(size: 13)).foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if let lookUp {
+                        Button(action: lookUp) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkle.magnifyingglass").font(.system(size: 20)).foregroundStyle(.blue)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(String(localized: "Nachschlagen")).font(.system(size: 16, weight: .semibold))
+                                    Text(String(localized: "Pflanze, Tier, Sehenswürdigkeit oder Kunstwerk im Foto")).font(.system(size: 13)).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                             }
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                            .padding(14)
+                            .background(Color(white: 0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
-                        .padding(14)
-                        .background(Color(white: 0.14), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .buttonStyle(.plain)
+                        .padding(.top, 6)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, 6)
-                }
-                TextField(String(localized: "Untertitel hinzufügen"), text: $caption, axis: .vertical)
-                    .font(.system(size: 17))
-                    .focused($editingCaption)
-                    .submitLabel(.done)
-                    .onChange(of: editingCaption) { _, f in if !f { saveCaption() } }
-                    .padding(.top, 6)
-                Divider()
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(Fmt.fullDate.string(from: asset.date) + " um " + Fmt.time.string(from: asset.date))
-                            .font(.system(size: 16, weight: .semibold))
-                        Text(fileName).font(.system(size: 15)).foregroundStyle(.secondary)
+                    TextField(String(localized: "Untertitel hinzufügen"), text: $caption, axis: .vertical)
+                        .font(.system(size: 17))
+                        .focused($editingCaption)
+                        .submitLabel(.done)
+                        .onChange(of: editingCaption) { _, f in if !f { saveCaption() } }
+                        .padding(.top, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .multilineTextAlignment(.leading)
+                        .textFieldStyle(.roundedBorder)
+                    Divider()
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(DateFormatter.localizedString(from: asset.date, date: .full, time: .short))
+                                .font(.system(size: 16, weight: .semibold))
+                            Text(fileName).font(.system(size: 15)).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(String(localized: "Anpassen")) { sheet = .dateTime([asset]) }
                     }
-                    Spacer()
-                    Button(String(localized: "Anpassen")) { sheet = .dateTime([asset]) }
+                    if let src = Provenance.source(dto?.originalFileName, make: dto?.exifInfo?.make) {
+                        Label(src, systemImage: Provenance.isScreen(src) ? "camera.viewfinder" : "square.and.arrow.down")
+                            .font(.system(size: 15)).foregroundStyle(.secondary)
+                    }
+                    peopleRow
+                    albumsRow
+                    ForEach(albums.filter { sharedAlbums.contains($0.id) }) { AlbumActivityView(album: $0, assetId: asset.id) }
+                    cameraCard
+                    mapCard
                 }
-                if let src = Provenance.source(dto?.originalFileName, make: dto?.exifInfo?.make) {
-                    Label(src, systemImage: Provenance.isScreen(src) ? "camera.viewfinder" : "square.and.arrow.down")
-                        .font(.system(size: 15)).foregroundStyle(.secondary)
-                }
-                peopleRow
-                albumsRow
-                ForEach(albums.filter { sharedAlbums.contains($0.id) }) { AlbumActivityView(album: $0, assetId: asset.id) }
-                cameraCard
-                mapCard
+                .padding(.horizontal, 20).padding(.bottom, 30)
             }
-            .padding(.horizontal, 20).padding(.bottom, 30)
-        }
-        .scrollDismissesKeyboard(.immediately)
-        .toolbar(.hidden, for: .navigationBar)
-        .navigationDestination(for: CollectionRoute.self) { r in CollectionDetail(route: r, model: CollectionsModel()) }
+            .scrollDismissesKeyboard(.immediately)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: CollectionRoute.self) { r in CollectionDetail(route: r, model: CollectionsModel()) }
         }
         .task {
             dto = try? await ImmichClient.shared.asset(asset.id)
@@ -719,94 +655,6 @@ private struct InfoSheet: View {
                 }
             }
         } message: { Text(String(localized: "Wie heißt diese Person?")) }
-    }
-
-    /// Personen auf dem Foto (wie Apple: Gesichter mit Namen, unbenannte mit „Name hinzufügen“).
-    @ViewBuilder private var peopleRow: some View {
-        let people = (dto?.people ?? []).filter { $0.isHidden != true }
-        if !people.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(String(localized: "Personen")).font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
-                ScrollView(.horizontal) {
-                    HStack(spacing: 16) {
-                        ForEach(people) { p in
-                            if p.name.isEmpty {
-                                Button { newName = ""; naming = p } label: { face(p, String(localized: "Name hinzufügen")) }.buttonStyle(.plain)
-                            } else {
-                                NavigationLink(value: CollectionRoute.person(PersonRef(id: p.id, name: p.name))) { face(p, p.name) }
-                                    .buttonStyle(.plain)
-                                    .contextMenu {
-                                        // wie Fotos (REA: PXPhotoKitPersonMakeKeyPhotoActionPerformer)
-                                        Button("Als Titelbild für \(p.name)", systemImage: "person.crop.square") {
-                                            Task {
-                                                do {
-                                                    let api = ImmichClient.shared
-                                                    func fetch() async -> Data? {
-                                                        guard let base = api.personThumbURL(p.id) else { return nil }
-                                                        // eigene Adresse je Abfrage, sonst antwortet der URL-Cache mit dem alten Bild
-                                                        return try? await api.data(base.appending(queryItems: [URLQueryItem(name: "t", value: UUID().uuidString)]))
-                                                    }
-                                                    let before = await fetch()
-                                                    try await api.updatePerson(p.id, ["featureFaceAssetId": asset.id])
-                                                    app.toast(String(localized: "Titelbild festgelegt"))
-                                                    // Server rechnet das Personenbild im Hintergrund neu – erst neu zeigen, wenn es da ist
-                                                    for _ in 0..<20 {
-                                                        try? await Task.sleep(for: .milliseconds(600))
-                                                        if let now = await fetch(), now != before { break }
-                                                    }
-                                                    ImageCache.shared.bumpPerson(p.id)
-                                                } catch { app.toast("Hat nicht geklappt") }
-                                            }
-                                        }
-                                        Button("Das ist nicht \(p.name)", systemImage: "person.crop.circle.badge.xmark") {
-                                            Task {
-                                                do {
-                                                    try await ImmichClient.shared.notThisPerson(asset: asset.id, person: p.id)
-                                                    app.toast(String(localized: "Aus „\(p.name)“ entfernt"))
-                                                } catch { app.toast(String(localized: "Hat nicht geklappt")) }
-                                                dto = try? await ImmichClient.shared.asset(asset.id)
-                                            }
-                                        }
-                                    }
-                            }
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
-    }
-
-    private func face(_ p: PersonDTO, _ title: String) -> some View {
-        VStack(spacing: 6) {
-            PersonThumb(id: p.id).frame(width: 60, height: 60).clipShape(Circle())
-            Text(title).font(.system(size: 12, weight: .medium)).lineLimit(1).frame(width: 76)
-                .foregroundStyle(p.name.isEmpty ? Color.blue : .primary)
-        }
-    }
-
-    /// In welchen Alben das Foto liegt (Apple: „In Alben“).
-    @ViewBuilder private var albumsRow: some View {
-        if !albums.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(albums.count == 1 ? String(localized: "In Album") : String(localized: "In \(albums.count) Alben")).font(.system(size: 15, weight: .semibold)).foregroundStyle(.secondary)
-                ScrollView(.horizontal) {
-                    HStack(spacing: 12) {
-                        ForEach(albums) { al in
-                            NavigationLink(value: CollectionRoute.album(AlbumRef(id: al.id, name: al.albumName))) {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Group { if let t = al.albumThumbnailAssetId { AssetThumb(id: t) } else { Color(white: 0.16) } }
-                                        .frame(width: 86, height: 86).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    Text(al.albumName).font(.system(size: 12, weight: .medium)).lineLimit(1).frame(width: 86, alignment: .leading)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
     }
 
     private var fileName: String { ((dto?.originalFileName ?? "") as NSString).deletingPathExtension }
@@ -898,9 +746,7 @@ private struct InfoSheet: View {
 
 extension String { var nonEmpty: String? { isEmpty ? nil : self } }
 
-/// Woher ein Foto stammt – aus dem Dateinamen, wie ihn Apps beim Speichern vergeben (Apple: „Gespeichert aus …“).
 enum Provenance {
-    /// Bildschirmfoto/-aufnahme statt gespeicherter Datei (Symbol)
     static func isScreen(_ s: String) -> Bool { s == String(localized: "Bildschirmfoto") || s == String(localized: "Bildschirmaufnahme") }
     static func source(_ fileName: String?, make: String?) -> String? {
         guard let n = fileName?.lowercased(), !n.isEmpty else { return nil }
@@ -921,4 +767,3 @@ enum Provenance {
         return app.map { String(localized: "Gespeichert aus \($0)") }
     }
 }
-
