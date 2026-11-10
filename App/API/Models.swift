@@ -280,6 +280,14 @@ enum Fmt {
     static let dayMonthYearUpper = make("d MMM yyyy")
     static let dayLongMonthYear = make("d MMMM yyyy")              // 26. August 2019
     static let fullDate = make("EEEE d MMMM yyyy")                 // Montag, 26. August 2019
+    /// Montag, 26. August 2019 um 17:40 / Monday, 26 August 2019 at 17:40 – das Bindewort liefert das System
+    static let fullDateTime: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .autoupdatingCurrent
+        f.timeZone = DateParsing.utc
+        f.dateStyle = .full; f.timeStyle = .short
+        return f
+    }()
 
     /// Wie Fotos: „Heute“, „Gestern“, innerhalb einer Woche der Wochentag, sonst `fallback` (Wanduhr-Datum, siehe Asset.date).
     static func relativeDay(_ d: Date, fallback: DateFormatter = dayLongMonthYear) -> String {

@@ -673,11 +673,11 @@ private struct InfoSheet: View {
                     .focused($editingCaption)
                     .submitLabel(.done)
                     .onChange(of: editingCaption) { _, f in if !f { saveCaption() } }
-                    .padding(.top, 6)
+                    .padding(.top, lookUp == nil ? 16 : 6)   // mittig zwischen Blattkante und Trennlinie
                 Divider()
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(Fmt.fullDate.string(from: asset.date) + " um " + Fmt.time.string(from: asset.date))
+                        Text(Fmt.fullDateTime.string(from: asset.date))
                             .font(.system(size: 16, weight: .semibold))
                         Text(fileName).font(.system(size: 15)).foregroundStyle(.secondary)
                     }
