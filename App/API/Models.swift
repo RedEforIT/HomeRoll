@@ -10,28 +10,25 @@ struct LoginResponse: Decodable {
 }
 
 struct TimeBucket: Decodable, Hashable, Identifiable, Sendable {
-    let timeBucket: String          // "2024-12-01" (Monatsanfang)
+    let timeBucket: String
     let count: Int
     var id: String { timeBucket }
-
-    /// Monatsanfang als Datum (Kalender in UTC = „Wanduhrzeit“, siehe Asset.date).
     var monthDate: Date { DateParsing.day(timeBucket) ?? .distantPast }
 }
 
-/// Spaltenformat von GET /timeline/bucket: jedes Feld ist ein Array, Index i = Asset i.
 struct BucketColumns: Decodable {
     let id: [String]
     let isImage: [Bool]
     let isFavorite: [Bool]
-    let fileCreatedAt: [String]          // UTC, ohne "Z"
-    let localOffsetHours: [Double?]?     // + Offset = Ortszeit der Aufnahme
+    let fileCreatedAt: [String]
+    let localOffsetHours: [Double?]?
     let ratio: [Double?]
-    let duration: [Int?]?                // Millisekunden, nur Videos
+    let duration: [Int?]?
     let livePhotoVideoId: [String?]
     let city: [String?]?
     let country: [String?]?
     let thumbhash: [String?]?
-    let createdAt: [String]?             // Upload-Zeitpunkt (für „Nach zuletzt hinzugefügt“)
+    let createdAt: [String]?
     let ownerId: [String]?
 
     func assets() -> [Asset] {
@@ -39,23 +36,15 @@ struct BucketColumns: Decodable {
             ImageCache.shared.setHash(id[i], thumbhash?[i] ?? nil, video: !isImage[i])
             let utc = DateParsing.wallClock(fileCreatedAt[i]) ?? .distantPast
             let offset = (localOffsetHours?[i] ?? nil) ?? 0
-            return Asset(id: id[i],
-                  isImage: isImage[i],
-                  isFavorite: isFavorite[i],
-                  date: utc.addingTimeInterval(offset * 3600),
-                  ratio: ratio[i] ?? 1,
-                  durationMs: duration?[i] ?? nil,
-                  livePhotoVideoId: livePhotoVideoId[i],
-                  city: city?[i] ?? nil,
-                  country: country?[i] ?? nil,
-                  addedAt: createdAt.flatMap { DateParsing.wallClock($0[i]) },
-                  ownerId: ownerId?[i])
+            return Asset(id: id[i], isImage: isImage[i], isFavorite: isFavorite[i],
+                         date: utc.addingTimeInterval(offset * 3600), ratio: ratio[i] ?? 1,
+                         durationMs: duration?[i] ?? nil, livePhotoVideoId: livePhotoVideoId[i],
+                         city: city?[i] ?? nil, country: country?[i] ?? nil,
+                         addedAt: createdAt.flatMap { DateParsing.wallClock($0[i]) }, ownerId: ownerId?[i])
         }
     }
 }
 
-/// Ein Foto/Video. `date` ist die lokale Aufnahme-Uhrzeit („Wanduhr“), als UTC gespeichert
-/// und immer mit `Calendar.wall` / UTC-Formattern angezeigt → Tage kippen nie um Mitternacht.
 struct Asset: Identifiable, Hashable, Sendable {
     let id: String
     let isImage: Bool
@@ -68,21 +57,19 @@ struct Asset: Identifiable, Hashable, Sendable {
     let country: String?
     var addedAt: Date? = nil
     var ownerId: String? = nil
-    var isHidden = false             // liegt in „Ausgeblendet“ (Immich „archive“; „hidden“ sind Live-Videoteile)
-    var trashedAt: Date? = nil       // liegt in „Zuletzt gelöscht“ (seit ungefähr)
-
+    var isHidden = false
+    var trashedAt: Date? = nil
     var isVideo: Bool { !isImage }
     var isLivePhoto: Bool { livePhotoVideoId != nil }
 }
 
-/// Vollständiges Asset (GET /assets/{id}, Suche, Rückblicke, Alben).
 struct AssetDTO: Decodable {
     let id: String
-    let type: String                 // IMAGE | VIDEO
+    let type: String
     let isFavorite: Bool
-    let localDateTime: String?       // Ortszeit der Aufnahme (mit falschem "Z")
+    let localDateTime: String?
     let fileCreatedAt: String
-    let duration: Int?               // Millisekunden (v3), null bei Fotos
+    let duration: Int?
     let livePhotoVideoId: String?
     let originalFileName: String?
     let originalMimeType: String?
@@ -91,14 +78,14 @@ struct AssetDTO: Decodable {
     let ownerId: String?
     let isEdited: Bool?
     let description: String?
-    let thumbhash: String?           // ändert sich, sobald der Server neue Vorschauen gerechnet hat
-    let width: Double?               // nach Bearbeitung (Zuschnitt/Drehung) aktuell, EXIF nicht
+    let thumbhash: String?
+    let width: Double?
     let height: Double?
     let stack: StackDTO?
-    let visibility: String?          // timeline | hidden | archive | locked
+    let visibility: String?
     let isTrashed: Bool?
-    let people: [PersonDTO]?         // erkannte Personen auf dem Foto (GET /assets/{id})
-    let updatedAt: String?           // bei Gelöschtem ≈ Zeitpunkt des Löschens (eigenes Feld gibt die API nicht her)
+    let people: [PersonDTO]?
+    let updatedAt: String?
     struct StackDTO: Decodable { let id: String; let primaryAssetId: String?; let assetCount: Int? }
 
     struct ExifDTO: Decodable {
@@ -118,7 +105,7 @@ struct AssetDTO: Decodable {
         let exposureTime: String?
         let lensModel: String?
         let description: String?
-        var dateTimeOriginal: String? = nil   // mit Zeitzone, z. B. 2026-07-15T15:30:00+02:00
+        var dateTimeOriginal: String? = nil
     }
 
     var asset: Asset {
@@ -150,19 +137,18 @@ struct AlbumDTO: Decodable, Identifiable, Hashable {
     let albumName: String
     let albumThumbnailAssetId: String?
     let assetCount: Int
-    var order: String? = nil          // asc | desc (Sortierung im Album, vom Server gespeichert)
+    var order: String? = nil
     var createdAt: String? = nil
     var updatedAt: String? = nil
-    var endDate: String? = nil        // neuestes Foto im Album
-    var shared: Bool? = nil           // mit anderen geteilt (dann gibt es Kommentare/Likes)
+    var endDate: String? = nil
+    var shared: Bool? = nil
 }
 
-/// Kommentar oder „Gefällt mir“ in einem geteilten Album (Immich: /activities).
 struct ActivityDTO: Decodable, Identifiable, Hashable {
     struct User: Decodable, Hashable { let id: String; let name: String }
     let id: String
     let createdAt: String
-    let type: String                  // comment | like
+    let type: String
     let assetId: String?
     let comment: String?
     let user: User
@@ -173,7 +159,7 @@ struct PersonDTO: Decodable, Identifiable, Hashable {
     let name: String
     let isHidden: Bool?
     var isFavorite: Bool? = nil
-    var birthDate: String? = nil      // JJJJ-MM-TT (Geburtstags-Rückblicke)
+    var birthDate: String? = nil
 }
 
 struct PeopleDTO: Decodable {
@@ -191,7 +177,7 @@ struct MapMarkerDTO: Decodable, Identifiable {
 
 struct TagDTO: Decodable {
     let id: String
-    let value: String                // voller Pfad, z. B. „Kategorie/Belege“
+    let value: String
 }
 
 struct DuplicateGroupDTO: Decodable, Identifiable {
@@ -202,12 +188,12 @@ struct DuplicateGroupDTO: Decodable, Identifiable {
 }
 
 struct SearchResponseDTO: Decodable {
-    let assets: Page
     struct Page: Decodable {
         let items: [AssetDTO]
         let nextCursor: String?
         let nextPage: String?
     }
+    let assets: Page
 }
 
 struct UserDTO: Decodable {
@@ -226,7 +212,6 @@ struct ServerStatsDTO: Decodable {
 enum DateParsing {
     static let utc = TimeZone(identifier: "UTC")!
 
-    /// "2024-12-17T10:10:00" oder "...000Z" → Datum, als Wanduhrzeit in UTC interpretiert.
     private static let isoWall: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
@@ -235,11 +220,11 @@ enum DateParsing {
         return f
     }()
 
+    /// Parses the wall-clock portion and deliberately ignores a supplied timezone offset.
+    /// Taking the fixed ISO timestamp prefix also handles negative offsets such as `-05:00`.
     static func wallClock(_ s: String) -> Date? {
-        var str = s
-        if let z = str.firstIndex(where: { $0 == "Z" || $0 == "+" }) { str = String(str[..<z]) }
-        if let dot = str.firstIndex(of: ".") { str = String(str[..<dot]) }
-        return isoWall.date(from: str)
+        guard s.count >= 19 else { return nil }
+        return isoWall.date(from: String(s.prefix(19)))
     }
 
     static func day(_ s: String) -> Date? {
@@ -249,11 +234,9 @@ enum DateParsing {
         f.dateFormat = "yyyy-MM-dd"
         return f.date(from: String(s.prefix(10)))
     }
-
 }
 
 extension Calendar {
-    /// Kalender für Wanduhr-Daten (siehe Asset.date).
     static let wall: Calendar = {
         var c = Calendar(identifier: .gregorian)
         c.timeZone = DateParsing.utc
@@ -263,25 +246,35 @@ extension Calendar {
 }
 
 enum Fmt {
+    /// Use the app's selected localization rather than the device's region/system locale.
+    static let appLocale = Locale(identifier: Bundle.main.preferredLocalizations.first ?? Locale.current.identifier)
+
     private static func make(_ template: String) -> DateFormatter {
         let f = DateFormatter()
-        f.locale = .autoupdatingCurrent
+        f.locale = appLocale
         f.timeZone = DateParsing.utc
         f.setLocalizedDateFormatFromTemplate(template)
         return f
     }
-    static let dayMonthYear = make("d MMM yyyy")      // 2. Nov. 2026
-    static let monthYear = make("MMMM yyyy")          // November 2026
-    static let monthShortYear = make("MMM yyyy")      // Okt. 2026 (Kapsel der Monats-Zoomstufe)
-    static let dayMonthYearShort = make("d MMM yyyy") // 7. Okt. 2026 (5-Spalten-Stufe)
-    static let weekdayDay = make("EEEE, d. MMMM")     // Montag, 2. November
+    static let dayMonthYear = make("d MMM yyyy")
+    static let monthYear = make("MMMM yyyy")
+    static let monthShortYear = make("MMM yyyy")
+    static let dayMonthYearShort = make("d MMM yyyy")
+    static let weekdayDay = make("EEEE, d. MMMM")
     static let time = make("HH:mm")
     static let weekday = make("EEEE")
     static let dayMonthYearUpper = make("d MMM yyyy")
-    static let dayLongMonthYear = make("d MMMM yyyy")              // 26. August 2019
-    static let fullDate = make("EEEE d MMMM yyyy")                 // Montag, 26. August 2019
+    static let dayLongMonthYear = make("d MMMM yyyy")
+    static let fullDate = make("EEEE d MMMM yyyy")
+    static let fullDateTime: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = appLocale
+        f.timeZone = DateParsing.utc
+        f.dateStyle = .full
+        f.timeStyle = .short
+        return f
+    }()
 
-    /// Wie Fotos: „Heute“, „Gestern“, innerhalb einer Woche der Wochentag, sonst `fallback` (Wanduhr-Datum, siehe Asset.date).
     static func relativeDay(_ d: Date, fallback: DateFormatter = dayLongMonthYear) -> String {
         let today = Calendar.wall.startOfDay(for: Date().addingTimeInterval(TimeInterval(TimeZone.current.secondsFromGMT())))
         let diff = Calendar.wall.dateComponents([.day], from: Calendar.wall.startOfDay(for: d), to: today).day ?? 99
