@@ -66,6 +66,13 @@ final class BackgroundUploader: NSObject, URLSessionDataDelegate, @unchecked Sen
         return Set(tasks.compactMap { $0.taskDescription.flatMap { try? JSONDecoder().decode(Meta.self, from: Data($0.utf8)) }?.localID })
     }
 
+    /// Dateinamen der Rümpfe, die das System gerade noch überträgt – alles andere im Rumpf-Ordner ist verwaist.
+    func activeBodies() async -> Set<String> {
+        let tasks = await session.allTasks.filter { $0.state == .running || $0.state == .suspended }
+        return Set(tasks.compactMap { $0.taskDescription.flatMap { try? JSONDecoder().decode(Meta.self, from: Data($0.utf8)) } }
+            .map { ($0.body as NSString).lastPathComponent })
+    }
+
     // MARK: URLSessionDataDelegate
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
