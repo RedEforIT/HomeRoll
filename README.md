@@ -37,6 +37,9 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 - Full-resolution original when zooming, HDR (gain map) on device
 - Live Photos: short motion when swiping to them, press to play; loop, bounce, long exposure
 - Video bar with filmstrip, scrubbing, sound, AirPlay; HDR video originals
+- Videos that are also in the iPhone's own photo library play from there instantly (like the Immich app); videos the iPhone can't decode fall back to Immich's realtime transcoding
+- Missing server thumbnails for videos are replaced by a frame from the video itself
+- *Copy Video Diagnostics* in the … menu: what the app requested, how the server answered, codec and timings – handy for bug reports
 - Slo-mo: 120/240 fps videos play slowed down in the middle, like Photos
 - **Spatial scene** (photos with depth data): tilt the iPhone for a 3D effect (subject via Vision, depth layers, pivot on the subject, background filled by the server)
 - Info: people (name them right there), albums, source app ("Saved from WhatsApp"), camera, map, caption
@@ -67,12 +70,15 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 - Backs up the entire library by default (iCloud-only photos are downloaded for it); already imported older photos another way, e.g. with icloudpd? Set the date and only newer ones are backed up
 - **Free Up Space**: delete from the iPhone only what is verified on your server (backup checksum + server check, not in the server trash), by age, favorites kept; iOS asks first and keeps them 30 days in Recently Deleted
 - Widgets (Memories, Featured Photos), share extension ("save to my server" from any app)
-- Shared links, Immich partner sharing ("shared library")
+- **Shared links** with password, expiry, metadata/download options and a custom name; see, edit and delete the links of a photo
+- Immich partner sharing ("shared library")
+- **Sign in with password or SSO/OIDC** ("Login with …"), also on servers with password login turned off (e.g. hosted Immich, Authentik, Keycloak)
+- App version in the profile menu and on the Backup page
 - Per-account separation of caches and memories, performance log
 
 ## Requirements
 
-- An Immich server (tested with **v3.3.5**) reachable from the iPhone – at home or via VPN (e.g. WireGuard)
+- An Immich server (tested with **v3.3.5**) reachable from the iPhone – at home, via VPN (e.g. WireGuard) or over https; login with password or SSO/OIDC
 - Xcode 26, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
 - iPhone with iOS 26
 
@@ -123,6 +129,7 @@ Debug builds also read `FOTOS_BACKUP_OFF=1` (no backup), `FOTOS_DUMP_MEMORIES=1`
 - The app talks **only** to your Immich server (and Apple Maps for place search, Apple's on-device Vision for Live Text, Look Up and subject masks).
 - No analytics, no third-party SDKs.
 - Login token in the Keychain; the share extension and widgets get it via the App Group.
+- SSO runs in Apple's sign-in sheet – the app never sees the password of your SSO provider.
 
 ## Project layout
 

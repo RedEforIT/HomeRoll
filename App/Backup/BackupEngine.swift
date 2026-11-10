@@ -189,6 +189,7 @@ final class BackupEngine {
         total = todo.count
         let inFlight = await BackgroundUploader.shared.activeLocalIDs()
         background = inFlight.count
+        await Self.sweepLeftovers()
         await repairTags(api)
         phase = .uploading
 
@@ -293,6 +294,31 @@ final class BackupEngine {
                                            localDate: localDate, checksum: sha1)
         let r = try await BackgroundUploader.shared.upload(req, body: body, meta: meta)
         return (r.id, r.status != "duplicate")
+    }
+
+    /// Zwischenkopien wegräumen, die ein früherer Lauf nicht mehr löschen konnte: Beendet iOS die App mitten im
+    /// Kopieren oder Prüfsummenbilden, läuft kein `defer` – ein 5,4-GB-Video ließ so 26 Kopien liegen (141 GB, 07.11.2026).
+    nonisolated static func sweepLeftovers() async {
+        let active = await BackgroundUploader.shared.activeBodies()
+        await Task.detached(priority: .utility) {
+            let fm = FileManager.default
+            let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey]
+            func files(_ dir: URL) -> [URL] {
+                ((try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: keys)) ?? [])
+                    .filter { (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true }
+            }
+            let dayAgo = Date().addingTimeInterval(-24 * 3600)
+            for f in files(fm.temporaryDirectory) {
+                let n = f.lastPathComponent
+                // „backup-…“ legt nur `send` an, und es läuft immer nur ein Lauf → alles Vorhandene ist verwaist.
+                // „upload-…“ kann gerade vom Kürzen im Editor stammen → nur Altes löschen.
+                let old = ((try? f.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast) < dayAgo
+                if n.hasPrefix("backup-") || (n.hasPrefix("upload-") && old) { try? fm.removeItem(at: f) }
+            }
+            // Rümpfe, die zu keiner laufenden Hintergrund-Übertragung mehr gehören (App starb vor dem Start der Übertragung)
+            let bodies = fm.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("backup-uploads")
+            for f in files(bodies) where !active.contains(f.lastPathComponent) { try? fm.removeItem(at: f) }
+        }.value
     }
 
     private static func write(_ res: PHAssetResource, to url: URL, network: Bool) async throws {

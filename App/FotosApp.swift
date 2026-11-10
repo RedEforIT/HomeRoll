@@ -15,6 +15,8 @@ struct FotosApp: App {
         #if DEBUG
         // Simulator-Test „lokale Kopie bevorzugen“: simctl kann vollen Fotozugriff nicht setzen → Systemdialog
         if ProcessInfo.processInfo.environment["FOTOS_TEST_ASK_PHOTOS"] != nil { PHPhotoLibrary.requestAuthorization(for: .readWrite) { _ in } }
+        // Simulator-Test „verwaiste Zwischenkopien“: Aufräumen ohne Backup-Lauf auslösen
+        if ProcessInfo.processInfo.environment["FOTOS_TEST_SWEEP"] != nil { Task { await BackupEngine.sweepLeftovers() } }
         #endif
     }
 
