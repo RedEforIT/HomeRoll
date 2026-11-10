@@ -69,7 +69,7 @@ final class OfflineStore: @unchecked Sendable {
     func store(_ kind: Kind, _ id: String, _ d: Data) {
         guard let n = name(id) else { return }
         let u = url(kind, n)
-        let oldName = keys[kind]?[id]
+        lock.lock(); let oldName = keys[kind]?[id]; lock.unlock()
         let oldSize = oldName.flatMap { (try? url(kind, $0).resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0 } ?? 0
         try? FileManager.default.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard (try? d.write(to: u, options: .atomic)) != nil else { return }
