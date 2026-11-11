@@ -18,6 +18,8 @@ struct EditorView: View {
     @State private var committed: EditState?
     /// Porträt: Blende statt der Regler zeigen
     @State private var depthMode = false
+    @State private var portraitPane: PortraitPane = .aperture
+    @State private var focusMark: CGPoint?
     @State private var markingUp = false
     @State private var straightenNote: String?
     @State private var brush: Double = 0.06
@@ -52,6 +54,20 @@ struct EditorView: View {
                     .padding(28)
                 } else if let img = showOriginal ? session.fullOriginal : session.preview {
                     Image(uiImage: img).resizable().scaledToFit()
+                        .overlay {
+                            // Fokus per Tippen (nur ohne Drehen/Spiegeln, damit der Punkt eindeutig im Original liegt)
+                            if depthMode, portraitActive, session.state.angle % 360 == 0, !session.state.mirrored {
+                                GeometryReader { g in
+                                    Color.clear.contentShape(Rectangle())
+                                        .onTapGesture { p in setFocus(p, in: g.size) }
+                                    if let m = focusMark {
+                                        RoundedRectangle(cornerRadius: 4).stroke(Color.yellow, lineWidth: 1.5)
+                                            .frame(width: 75, height: 75).position(m).allowsHitTesting(false)
+                                            .transition(.scale(scale: 1.3).combined(with: .opacity))
+                                    }
+                                }
+                            }
+                        }
                         .padding(.horizontal, 12)
                         .onLongPressGesture(minimumDuration: 0.15, perform: {}, onPressingChanged: { showOriginal = $0 })
                 } else if session.loading {
@@ -128,11 +144,11 @@ struct EditorView: View {
             } else {
                 if session.hasDepth {
                     Button { withAnimation(.snappy) { depthMode.toggle(); mode = .adjust } } label: {
-                        Text(session.state.aperture.map { String(format: "ƒ %.1f", $0) } ?? "ƒ")
+                        Text(portraitActive ? "ƒ " + Self.fText(session.state.aperture ?? 4.5) : "ƒ")
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(session.state.aperture != nil ? Color.black : .white)
+                            .foregroundStyle(portraitActive ? Color.black : .white)
                             .padding(.horizontal, 12).frame(height: 46)
-                            .background { if session.state.aperture != nil { Capsule().fill(Color.yellow) } }
+                            .background { if portraitActive { Capsule().fill(Color.yellow) } }
                     }
                     .glassEffect(.regular.interactive(), in: .capsule)
                     .accessibilityLabel(String(localized: "Porträt-Blende"))
@@ -470,37 +486,96 @@ struct EditorView: View {
     }
 
     /// Porträt: Blende wie Apple (ƒ1,4 … ƒ16), Tippen auf den Knopf schaltet die Tiefenunschärfe aus/ein.
+    private var portraitActive: Bool { session.state.aperture != nil && !session.state.portraitOff }
+
+    /// Porträt wie in Fotos: Schalter „PORTRÄT“ (merkt sich alles), Blende in Drittelstufen mit „AUS“, Porträtlicht mit Stärke.
     private var depthControls: some View {
-        VStack(spacing: 14) {
-            Button {
-                withAnimation(.snappy) { session.state.aperture = session.state.aperture == nil ? 4.5 : nil }
-            } label: {
-                Label(session.state.aperture == nil ? String(localized: "PORTRÄT AUS") : String(localized: "PORTRÄT"), systemImage: "f.cursive.circle")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(session.state.aperture == nil ? Color.white : .black)
-                    .padding(.horizontal, 14).frame(height: 30)
-                    .background(Capsule().fill(session.state.aperture == nil ? Color(white: 0.2) : .yellow))
+        VStack(spacing: 12) {
+            HStack(spacing: 14) {
+                Button {
+                    withAnimation(.snappy) {
+                        if session.state.aperture == nil { session.state.aperture = 4.5; session.state.portraitOff = false }
+                        else { session.state.portraitOff.toggle() }
+                    }
+                } label: {
+                    Text(String(localized: "PORTRÄT")).font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(portraitActive ? Color.black : .white)
+                        .padding(.horizontal, 14).frame(height: 30)
+                        .background(Capsule().fill(portraitActive ? Color.yellow : Color(white: 0.2)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Porträtsteuerungen"))
+                // Unterbereiche: Licht | Blende (Licht nur mit Personen-Maske, wie Fotos)
+                if session.hasMatte {
+                    Picker("", selection: $portraitPane) {
+                        Image(systemName: "cube.transparent").tag(PortraitPane.light)
+                        Text(session.state.aperture.map { "ƒ " + Self.fText($0) } ?? "ƒ").tag(PortraitPane.aperture)
+                    }
+                    .pickerStyle(.segmented).frame(width: 150)
+                }
             }
-            .buttonStyle(.plain)
-            Text(session.state.aperture.map { String(format: String(localized: "BLENDE  ƒ %.1f"), $0) } ?? String(localized: "Tippe auf „Porträt“, um die Tiefenunschärfe einzuschalten"))
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
-            // Lineal: links = ƒ1,4 (viel Unschärfe), rechts = ƒ16
-            TickScrubber(value: Binding(get: { Self.apertureToDial(session.state.aperture ?? 4.5) },
-                                        set: { session.state.aperture = Self.dialToAperture($0) }),
-                         enabled: session.state.aperture != nil) { scrubbing = $0 }
-                .frame(height: 44)
-                .disabled(session.state.aperture == nil)
+            if portraitPane == .aperture || !session.hasMatte {
+                Text(portraitActive ? String(localized: "Tippe ins Foto, um den Fokus zu setzen") : String(localized: "Porträt ist aus"))
+                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                ApertureDial(value: Binding(get: { portraitActive ? session.state.aperture : nil },
+                                            set: { f in
+                                                if let f { session.state.aperture = f; session.state.portraitOff = false }
+                                                else { session.state.portraitOff = true }   // „AUS“ = ganzes Porträt aus
+                                            })) { scrubbing = $0 }
+                    .frame(height: 56)
+            } else {
+                lightControls
+            }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 
-    /// Lineal −1 … 1 ↔ Blende ƒ1,4 … ƒ4,5 … ƒ16 (logarithmisch, Mitte = ƒ4,5 wie Apples Standard)
-    static func dialToAperture(_ v: Double) -> Double {
-        (4.5 * (v >= 0 ? pow(16 / 4.5, v) : pow(1.4 / 4.5, -v))).rounded(toPlaces: 1)
+    @ViewBuilder private var lightControls: some View {
+        let light = session.state.light
+        Text(light.title).font(.system(size: 12, weight: .bold)).foregroundStyle(.yellow)
+        ScrollView(.horizontal) {
+            HStack(spacing: 10) {
+                ForEach(PortraitLight.allCases) { l in
+                    Button {
+                        withAnimation(.snappy) {
+                            session.state.light = l
+                            if session.state.aperture == nil { session.state.aperture = 4.5 }
+                            session.state.portraitOff = false   // Effekt wählen schaltet das Porträt wieder ein (wie Fotos)
+                        }
+                    } label: {
+                        Image(systemName: l.symbol).font(.system(size: 18))
+                            .foregroundStyle(light == l && portraitActive ? Color.black : .white)
+                            .frame(width: 48, height: 48)
+                            .background(Circle().fill(light == l && portraitActive ? Color.yellow : Color(white: 0.18)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(l.title)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .scrollIndicators(.hidden)
+        if light != .natural {
+            TickScrubber(value: Binding(get: { session.state.strength(light) },
+                                        set: { session.state.lightStrength[light] = max(0, min(1, $0)) }),
+                         range: 0...1, enabled: portraitActive) { scrubbing = $0 }
+                .frame(height: 40)
+        }
     }
-    static func apertureToDial(_ f: Double) -> Double {
-        f >= 4.5 ? log(f / 4.5) / log(16 / 4.5) : -log(f / 4.5) / log(1.4 / 4.5)
+
+    /// Tippunkt (Anzeige, nach Zuschnitt) → Punkt im unbearbeiteten Bild, Rahmen kurz zeigen
+    private func setFocus(_ p: CGPoint, in size: CGSize) {
+        guard size.width > 0, size.height > 0 else { return }
+        let u = p.x / size.width, v = p.y / size.height
+        guard (0...1).contains(u), (0...1).contains(v) else { return }
+        let c = session.state.crop
+        session.state.focus = CGPoint(x: c.minX + u * c.width, y: c.minY + v * c.height)
+        withAnimation(.snappy) { focusMark = p }
+        Task { try? await Task.sleep(for: .seconds(1.2)); withAnimation { focusMark = nil } }
     }
+
+    /// „4.5“, „16“ – Punkt als Trenner auch auf Deutsch, ab 10 ohne Nachkommastelle (wie Fotos)
+    static func fText(_ f: Double) -> String { f >= 10 ? String(Int(f.rounded())) : String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), f) }
 
     /// Begradigen / Perspektive vertikal / horizontal – runde Knöpfe + Lineal wie bei Apple.
     private var cropControls: some View {
@@ -1017,5 +1092,67 @@ struct CleanupCanvas: View {
     private func fitted(_ img: CGSize, in box: CGSize) -> CGSize {
         let s = min(box.width / img.width, box.height / img.height)
         return CGSize(width: img.width * s, height: img.height * s)
+    }
+}
+
+enum PortraitPane { case light, aperture }
+
+/// Blendenregler wie in Fotos: Drittelstufen ƒ1.4 … ƒ16, ganze Blenden als lange Striche, ganz rechts „AUS“ (= nil).
+struct ApertureDial: View {
+    @Binding var value: Double?
+    var onEditing: (Bool) -> Void = { _ in }
+    static let stops: [Double] = [1.4, 1.6, 1.8, 2.0, 2.2, 2.5, 2.8, 3.2, 3.5, 4.0, 4.5, 5.0, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16]
+    static let full: Set<Double> = [1.4, 2.0, 2.8, 4.0, 5.6, 8, 11, 16]
+    private let spacing: CGFloat = 16
+    @State private var start: (x: CGFloat, index: Int)?
+
+    /// Index der aktuellen Stufe; stops.count = „AUS“
+    private var index: Int {
+        guard let v = value else { return Self.stops.count }
+        return Self.stops.enumerated().min { abs($0.element - v) < abs($1.element - v) }?.offset ?? 10
+    }
+
+    var body: some View {
+        Canvas { ctx, size in
+            let mid = size.width / 2
+            for i in 0...Self.stops.count {
+                let x = mid + CGFloat(i - index) * spacing
+                guard x > -10 && x < size.width + 10 else { continue }
+                if i == Self.stops.count {
+                    ctx.draw(Text(String(localized: "AUS")).font(.system(size: 11, weight: .bold)).foregroundColor(.white.opacity(0.8)),
+                             at: CGPoint(x: x, y: size.height - 14))
+                    continue
+                }
+                let f = Self.stops[i], major = Self.full.contains(f)
+                let h: CGFloat = major ? 20 : 12
+                ctx.fill(Path(CGRect(x: x - 0.9, y: size.height - 24 - h, width: 1.8, height: h)), with: .color(.white.opacity(major ? 0.8 : 0.45)))
+                if major {
+                    ctx.draw(Text(EditorView.fText(f)).font(.system(size: 10)).foregroundColor(.white.opacity(0.6)), at: CGPoint(x: x, y: size.height - 8))
+                }
+            }
+            ctx.fill(Path(CGRect(x: mid - 1.25, y: 0, width: 2.5, height: size.height - 22)), with: .color(value == nil ? .white : .yellow))
+        }
+        .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12),
+                                     .init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
+                             startPoint: .leading, endPoint: .trailing))
+        .contentShape(Rectangle())
+        .gesture(DragGesture(minimumDistance: 0)
+            .onChanged { g in
+                if start == nil { start = (g.startLocation.x, index); onEditing(true) }
+                guard let s = start else { return }
+                let i = max(0, min(Self.stops.count, s.index - Int(((g.location.x - s.x) / spacing).rounded())))
+                if i != index {
+                    value = i == Self.stops.count ? nil : Self.stops[i]
+                    UISelectionFeedbackGenerator().selectionChanged()
+                }
+            }
+            .onEnded { _ in start = nil; onEditing(false) })
+        .accessibilityElement()
+        .accessibilityLabel(String(localized: "Blendenöffnung"))
+        .accessibilityValue(value.map { "ƒ " + EditorView.fText($0) } ?? String(localized: "AUS"))
+        .accessibilityAdjustableAction { d in
+            let i = d == .increment ? min(Self.stops.count, index + 1) : max(0, index - 1)
+            value = i == Self.stops.count ? nil : Self.stops[i]
+        }
     }
 }
