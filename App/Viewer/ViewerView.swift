@@ -661,6 +661,8 @@ private struct InfoSheet: View {
     @Environment(AppModel.self) private var app
     @State private var dto: AssetDTO?
     @State private var nearby: [MapMarkerDTO] = []
+    /// „Mit Bereinigen bearbeitet“: alle so bearbeiteten Fotos (für den Tipp auf den Hinweis)
+    @State private var cleanedIDs: [String]?
     @State private var nearbyChecked = false
     @State private var albums: [AlbumDTO] = []
     @State private var sharedAlbums: Set<String> = []
@@ -707,6 +709,13 @@ private struct InfoSheet: View {
                     Spacer()
                     Button(String(localized: "Anpassen")) { sheet = .dateTime([asset]) }
                 }
+                if let ids = cleanedIDs {
+                    NavigationLink(value: CollectionRoute.assets(title: String(localized: "Mit Bereinigen bearbeitet"), ids: ids)) {
+                        Label(String(localized: "Mit Bereinigen bearbeitet"), systemImage: "eraser")
+                            .font(.system(size: 15)).foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
                 if let src = Provenance.source(dto?.originalFileName, make: dto?.exifInfo?.make) {
                     Label(src, systemImage: Provenance.isScreen(src) ? "camera.viewfinder" : "square.and.arrow.down")
                         .font(.system(size: 15)).foregroundStyle(.secondary)
@@ -726,6 +735,7 @@ private struct InfoSheet: View {
         .task {
             dto = try? await ImmichClient.shared.asset(asset.id)
             caption = dto?.exifInfo?.description ?? ""
+            await loadCleaned()
             albums = (try? await ImmichClient.shared.albums(containing: asset.id)) ?? []
             if !albums.isEmpty { sharedAlbums = await ImmichClient.shared.sharedAlbumIDs() }
         }
@@ -878,6 +888,19 @@ private struct InfoSheet: View {
     private func exif(_ v: String?) -> some View {
         Text(v ?? "–").font(.system(size: 13)).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             .overlay(alignment: .trailing) { Rectangle().fill(Color(white: 0.3)).frame(width: 1, height: 16) }
+    }
+
+    /// War es eine Bereinigen-Bearbeitung? (gespeicherter Bearbeitungsstand mit Strichen) → Hinweis + Liste aller bereinigten Fotos
+    private func loadCleaned() async {
+        let api = ImmichClient.shared
+        guard let meta = await api.metadata(asset.id, key: "fotos.edit"), let json = meta["state"] as? String,
+              let st = try? JSONDecoder().decode(EditState.self, from: Data(json.utf8)), !st.cleanup.isEmpty else { return }
+        var ids = [asset.id]
+        if let t = (try? await api.tags())?.first(where: { $0.value == "Kategorie/Bereinigt" }),
+           let found = try? await api.search(filter: ["tagIds": ["any": [t.id]]], size: 1000) {
+            ids = Array(Set(ids + found.map(\.id)))
+        }
+        cleanedIDs = ids
     }
 
     /// Fotos im Umkreis von ~1 km (Immich-Kartenpunkte), ohne dieses Foto
