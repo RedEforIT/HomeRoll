@@ -442,9 +442,26 @@ struct EditorView: View {
                     Text(String(format: String(localized: "Ton %+d · Farbe %+d"), Int(session.state.styleTone * 100), Int(session.state.styleColor * 100)))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                     Button(String(localized: "Zurücksetzen")) {
-                        withAnimation { session.state.styleTone = 0; session.state.styleColor = 0; session.state.stylePalette = 1 }
+                        withAnimation {
+                            session.state.styleTone = 0; session.state.styleColor = 0; session.state.stylePalette = 1
+                            session.state.styleTexture = 0; session.state.styleGrain = 0
+                        }
                     }
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(.yellow)
+                }
+            }
+            .padding(.horizontal, 20)
+            // Fotografische Stile 3: Textur und Körnung
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(localized: "TEXTUR  \(Int((session.state.styleTexture * 100).rounded()))"))
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                    TickScrubber(value: $session.state.styleTexture, range: -1...1) { scrubbing = $0 }.frame(height: 40)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(String(localized: "KÖRNUNG  \(Int((session.state.styleGrain * 100).rounded()))"))
+                        .font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
+                    TickScrubber(value: $session.state.styleGrain, range: 0...1) { scrubbing = $0 }.frame(height: 40)
                 }
             }
             .padding(.horizontal, 20)

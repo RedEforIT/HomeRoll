@@ -1,6 +1,66 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "Album als Link teilen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share Album as Link"
+          }
+        }
+      }
+    },
+    "Datei senden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send File"
+          }
+        }
+      }
+    },
+    "Neuer Link für das ganze Album": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Link for the Whole Album"
+          }
+        }
+      }
+    },
+    "Empfänger dürfen Fotos hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recipients Can Add Photos"
+          }
+        }
+      }
+    },
+    "TEXTUR  %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TEXTURE  %lld"
+          }
+        }
+      }
+    },
+    "KÖRNUNG  %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "GRAIN  %lld"
+          }
+        }
+      }
+    },
     "": {},
     " ": {
       "localizations": {
