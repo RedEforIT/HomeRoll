@@ -1,6 +1,886 @@
 {
   "sourceLanguage": "de",
   "strings": {
+    "1 Objekt passt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 item matches"
+          }
+        }
+      }
+    },
+    "%lld Objekte passen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items match"
+          }
+        }
+      }
+    },
+    "%lld Objekte gestapelt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld items stacked"
+          }
+        }
+      }
+    },
+    "Datum & Uhrzeit für %lld Objekte eingesetzt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date & time pasted on %lld items"
+          }
+        }
+      }
+    },
+    "Ort für %lld Objekte eingesetzt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location pasted on %lld items"
+          }
+        }
+      }
+    },
+    "%lld Fotos in der Nähe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld photos nearby"
+          }
+        }
+      }
+    },
+    "2D": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2D"
+          }
+        }
+      }
+    },
+    "3D": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3D"
+          }
+        }
+      }
+    },
+    "AUS": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OFF"
+          }
+        }
+      }
+    },
+    "Aktuell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current"
+          }
+        }
+      }
+    },
+    "Alle Bedingungen müssen zutreffen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Match all conditions"
+          }
+        }
+      }
+    },
+    "Als Video gesichert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved as video"
+          }
+        }
+      }
+    },
+    "Als Video sichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save as Video"
+          }
+        }
+      }
+    },
+    "Ansicht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
+          }
+        }
+      }
+    },
+    "Aufgenommen zwischen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taken between"
+          }
+        }
+      }
+    },
+    "Auswählen …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose …"
+          }
+        }
+      }
+    },
+    "Bedingung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Condition"
+          }
+        }
+      }
+    },
+    "Bedingung hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Condition"
+          }
+        }
+      }
+    },
+    "Bildunterschriften": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Captions"
+          }
+        }
+      }
+    },
+    "Bis": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To"
+          }
+        }
+      }
+    },
+    "Blendenöffnung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aperture"
+          }
+        }
+      }
+    },
+    "BÜHNENLICHT": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STAGE LIGHT"
+          }
+        }
+      }
+    },
+    "BÜHNENLICHT MONO": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STAGE LIGHT MONO"
+          }
+        }
+      }
+    },
+    "Dateiname enthält": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filename contains"
+          }
+        }
+      }
+    },
+    "Datum & Uhrzeit eingesetzt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date & time pasted"
+          }
+        }
+      }
+    },
+    "Datum & Uhrzeit einsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Date & Time"
+          }
+        }
+      }
+    },
+    "Datum & Uhrzeit kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Date & Time"
+          }
+        }
+      }
+    },
+    "Datum & Uhrzeit kopiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date & time copied"
+          }
+        }
+      }
+    },
+    "Dieses Foto hat keinen Ort": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo has no location"
+          }
+        }
+      }
+    },
+    "Dieses Foto ist nicht gestapelt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo isn't stacked"
+          }
+        }
+      }
+    },
+    "Einschließen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Include"
+          }
+        }
+      }
+    },
+    "Erkunden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explore"
+          }
+        }
+      }
+    },
+    "Fotos in der Nähe zeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Nearby Photos"
+          }
+        }
+      }
+    },
+    "HIGH-KEY-LICHT MONO": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HIGH-KEY LIGHT MONO"
+          }
+        }
+      }
+    },
+    "Hybrid": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hybrid"
+          }
+        }
+      }
+    },
+    "In den letzten … Tagen aufgenommen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taken in the last … days"
+          }
+        }
+      }
+    },
+    "In der Nähe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nearby"
+          }
+        }
+      }
+    },
+    "Intelligentes Album": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Album"
+          }
+        }
+      }
+    },
+    "Intelligentes Album löschen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Smart Album"
+          }
+        }
+      }
+    },
+    "KONTURENLICHT": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CONTOUR LIGHT"
+          }
+        }
+      }
+    },
+    "Kamerahersteller": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera make"
+          }
+        }
+      }
+    },
+    "Kameramodell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera model"
+          }
+        }
+      }
+    },
+    "Kartenart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Map Type"
+          }
+        }
+      }
+    },
+    "Keine anderen Fotos in der Nähe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No other photos nearby"
+          }
+        }
+      }
+    },
+    "Kompatibelstes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most Compatible"
+          }
+        }
+      }
+    },
+    "Kontakt getrennt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact unlinked"
+          }
+        }
+      }
+    },
+    "Kontakt trennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlink Contact"
+          }
+        }
+      }
+    },
+    "Kontaktdaten verknüpfen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link Contact"
+          }
+        }
+      }
+    },
+    "Kopieren & Einsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy & Paste"
+          }
+        }
+      }
+    },
+    "Live Photo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live Photo"
+          }
+        }
+      }
+    },
+    "Medienart: Foto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media type: Photo"
+          }
+        }
+      }
+    },
+    "Medienart: Video": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media type: Video"
+          }
+        }
+      }
+    },
+    "Mit Bereinigen bearbeitet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edited with Clean Up"
+          }
+        }
+      }
+    },
+    "Mit Kontakt verknüpft": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Linked to contact"
+          }
+        }
+      }
+    },
+    "NATÜRLICHES LICHT": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NATURAL LIGHT"
+          }
+        }
+      }
+    },
+    "Neues intelligentes Album": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Smart Album"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Objektiv": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lens"
+          }
+        }
+      }
+    },
+    "Optionen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Options"
+          }
+        }
+      }
+    },
+    "Ort (Stadt)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place (city)"
+          }
+        }
+      }
+    },
+    "Ort eingesetzt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location pasted"
+          }
+        }
+      }
+    },
+    "Ort einsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste Location"
+          }
+        }
+      }
+    },
+    "Ort ist enthalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location is included"
+          }
+        }
+      }
+    },
+    "Ort kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Location"
+          }
+        }
+      }
+    },
+    "Ort kopiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location copied"
+          }
+        }
+      }
+    },
+    "Ort nicht enthalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location not included"
+          }
+        }
+      }
+    },
+    "Porträt ist aus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait is off"
+          }
+        }
+      }
+    },
+    "Porträtsteuerungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portrait controls"
+          }
+        }
+      }
+    },
+    "Regeln bearbeiten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Rules"
+          }
+        }
+      }
+    },
+    "STUDIOLICHT": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STUDIO LIGHT"
+          }
+        }
+      }
+    },
+    "Satellit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satellite"
+          }
+        }
+      }
+    },
+    "Schlagwort": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyword"
+          }
+        }
+      }
+    },
+    "Schlagwort/Kategorie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keyword/Category"
+          }
+        }
+      }
+    },
+    "Stapel aufgelöst": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unstacked"
+          }
+        }
+      }
+    },
+    "Stapel auflösen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unstack"
+          }
+        }
+      }
+    },
+    "Stapel konnte nicht aufgelöst werden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't unstack"
+          }
+        }
+      }
+    },
+    "Stapeln": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack"
+          }
+        }
+      }
+    },
+    "Stapeln fehlgeschlagen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stacking failed"
+          }
+        }
+      }
+    },
+    "Teilen-Optionen …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share Options …"
+          }
+        }
+      }
+    },
+    "Tippe ins Foto, um den Fokus zu setzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap the photo to set the focus"
+          }
+        }
+      }
+    },
+    "Unbearbeitetes Original": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unedited Original"
+          }
+        }
+      }
+    },
+    "Video konnte nicht gesichert werden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save the video"
+          }
+        }
+      }
+    },
+    "Videobild als Foto gesichert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video frame saved as photo"
+          }
+        }
+      }
+    },
+    "Videobild als Foto sichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Video Frame as Photo"
+          }
+        }
+      }
+    },
+    "Videobild konnte nicht gesichert werden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't save the video frame"
+          }
+        }
+      }
+    },
+    "Von": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From"
+          }
+        }
+      }
+    },
+    "Wert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Value"
+          }
+        }
+      }
+    },
+    "„Kompatibelstes“ schickt Fotos als JPEG und Videos als H.264, damit sie überall aufgehen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Most Compatible” sends photos as JPEG and videos as H.264 so they open everywhere."
+          }
+        }
+      }
+    },
     "Album als Link teilen": {
       "localizations": {
         "en": {
