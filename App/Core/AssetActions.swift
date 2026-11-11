@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import MapKit
 import UniformTypeIdentifiers
 import ImageIO
@@ -38,6 +39,102 @@ enum ActionSheet: Identifiable {
 /// Aktionen wie im Fotos-Menü „…“ / Kontextmenü.
 @MainActor
 enum AssetActions {
+    // MARK: Datum/Ort kopieren und einsetzen (wie Fotos „Datum & Uhrzeit kopieren“)
+    static var copiedDate: Date?
+    static var copiedLocation: (lat: Double, lon: Double)?
+
+    static func copyDate(_ a: Asset, app: AppModel) {
+        copiedDate = a.date
+        app.toast(String(localized: "Datum & Uhrzeit kopiert"))
+    }
+    static func pasteDate(_ assets: [Asset], app: AppModel, timeline: TimelineStore) async {
+        guard let d = copiedDate else { return }
+        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.timeZone = DateParsing.utc
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        let api = ImmichClient.shared
+        for a in assets { try? await api.raw("assets/\(a.id)", method: "PUT", body: api.json(["dateTimeOriginal": f.string(from: d)])) }
+        app.toast(assets.count == 1 ? String(localized: "Datum & Uhrzeit eingesetzt") : String(localized: "Datum & Uhrzeit für \(assets.count) Objekte eingesetzt"))
+        try? await Task.sleep(for: .seconds(2))   // Server liest Metadaten neu ein
+        await timeline.reload()
+    }
+    static func copyLocation(_ a: Asset, app: AppModel) async {
+        guard let e = try? await ImmichClient.shared.asset(a.id).exifInfo, let lat = e.latitude, let lon = e.longitude else {
+            app.toast(String(localized: "Dieses Foto hat keinen Ort")); return
+        }
+        copiedLocation = (lat, lon)
+        app.toast(String(localized: "Ort kopiert"))
+    }
+    static func pasteLocation(_ assets: [Asset], app: AppModel, timeline: TimelineStore) async {
+        guard let l = copiedLocation else { return }
+        try? await ImmichClient.shared.update(assets.map(\.id), ["latitude": l.lat, "longitude": l.lon])
+        app.toast(assets.count == 1 ? String(localized: "Ort eingesetzt") : String(localized: "Ort für \(assets.count) Objekte eingesetzt"))
+        try? await Task.sleep(for: .seconds(2))
+        await timeline.reload()
+    }
+
+    // MARK: Stapeln (z. B. RAW + JPEG): das erste Objekt bleibt sichtbar, die anderen liegen darunter
+    static func stack(_ assets: [Asset], app: AppModel, timeline: TimelineStore) async {
+        guard assets.count > 1 else { return }
+        do {
+            try await ImmichClient.shared.createStack(assets.sorted { $0.date < $1.date }.map(\.id))
+            app.toast(String(localized: "\(assets.count) Objekte gestapelt"))
+            await timeline.reload()
+        } catch { app.toast(String(localized: "Stapeln fehlgeschlagen")) }
+    }
+    static func unstack(_ a: Asset, app: AppModel, timeline: TimelineStore) async {
+        guard let s = try? await ImmichClient.shared.asset(a.id).stack else { app.toast(String(localized: "Dieses Foto ist nicht gestapelt")); return }
+        do {
+            try await ImmichClient.shared.deleteStack(s.id)
+            app.toast(String(localized: "Stapel aufgelöst"))
+            await timeline.reload()
+        } catch { app.toast(String(localized: "Stapel konnte nicht aufgelöst werden")) }
+    }
+
+    // MARK: Videobild / Live-Video als eigenes Objekt sichern (Datum und Ort vom Original)
+    static func saveVideoFrame(_ a: Asset, at seconds: Double, app: AppModel, timeline: TimelineStore) async {
+        guard let url = ImmichClient.shared.originalURL(a.id, edited: true) else { return }
+        app.busy = String(localized: "Wird gesichert …")
+        defer { app.busy = nil }
+        do {
+            let api = ImmichClient.shared
+            let data = try await api.data(url)
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("frame-\(UUID().uuidString).mov")
+            try data.write(to: file); defer { try? FileManager.default.removeItem(at: file) }
+            let gen = AVAssetImageGenerator(asset: AVURLAsset(url: file))
+            gen.appliesPreferredTrackTransform = true
+            gen.requestedTimeToleranceBefore = .zero; gen.requestedTimeToleranceAfter = .zero
+            let cg = try await gen.image(at: CMTime(seconds: seconds, preferredTimescale: 600)).image
+            guard let jpeg = UIImage(cgImage: cg).jpegData(compressionQuality: 0.95) else { return }
+            let dto = try await api.asset(a.id)
+            let base = ((dto.originalFileName ?? "VIDEO") as NSString).deletingPathExtension
+            let id = try await api.upload(jpeg, filename: base + "_bild.jpg", created: dto.fileCreatedAt)
+            await copyPlace(from: dto, to: id)
+            app.toast(String(localized: "Videobild als Foto gesichert"))
+            await timeline.reload()
+        } catch { app.toast(String(localized: "Videobild konnte nicht gesichert werden")) }
+    }
+    static func saveLiveAsVideo(_ a: Asset, app: AppModel, timeline: TimelineStore) async {
+        guard let vid = a.livePhotoVideoId, let url = ImmichClient.shared.originalURL(vid, edited: false) else { return }
+        app.busy = String(localized: "Wird gesichert …")
+        defer { app.busy = nil }
+        do {
+            let api = ImmichClient.shared
+            let data = try await api.data(url)
+            let dto = try await api.asset(a.id)
+            let base = ((dto.originalFileName ?? "LIVE") as NSString).deletingPathExtension
+            let id = try await api.upload(data, filename: base + "_video.mov", created: dto.fileCreatedAt, mime: "video/quicktime")
+            await copyPlace(from: dto, to: id)
+            app.toast(String(localized: "Als Video gesichert"))
+            await timeline.reload()
+        } catch { app.toast(String(localized: "Video konnte nicht gesichert werden")) }
+    }
+    /// Ort vom Original übernehmen (das neue Objekt hat sonst keinen)
+    private static func copyPlace(from dto: AssetDTO, to id: String) async {
+        if let lat = dto.exifInfo?.latitude, let lon = dto.exifInfo?.longitude {
+            try? await ImmichClient.shared.update([id], ["latitude": lat, "longitude": lon])
+        }
+    }
+
     /// „Kopieren“ – Bild in die Zwischenablage (zum Einsetzen in Nachrichten, Notizen …).
     static func copy(_ assets: [Asset], app: AppModel) async {
         let api = ImmichClient.shared
@@ -517,6 +614,27 @@ struct AssetMenu: View {
     @ViewBuilder private var dateButtons: some View {
         Button(String(localized: "Datum/Uhrzeit"), systemImage: "calendar.badge.clock") { present(.dateTime(assets)) }
         Button(String(localized: "Ort anpassen"), systemImage: "mappin.circle") { present(.location(assets)) }
+        Menu(String(localized: "Kopieren & Einsetzen"), systemImage: "doc.on.clipboard") {
+            if assets.count == 1, let a = assets.first {
+                Button(String(localized: "Datum & Uhrzeit kopieren"), systemImage: "calendar") { AssetActions.copyDate(a, app: app) }
+                Button(String(localized: "Ort kopieren"), systemImage: "mappin") { Task { await AssetActions.copyLocation(a, app: app) } }
+            }
+            if AssetActions.copiedDate != nil {
+                Button(String(localized: "Datum & Uhrzeit einsetzen"), systemImage: "calendar.badge.plus") {
+                    Task { await AssetActions.pasteDate(assets, app: app, timeline: timeline) }
+                }
+            }
+            if AssetActions.copiedLocation != nil {
+                Button(String(localized: "Ort einsetzen"), systemImage: "mappin.and.ellipse") {
+                    Task { await AssetActions.pasteLocation(assets, app: app, timeline: timeline) }
+                }
+            }
+        }
+        if assets.count > 1 {
+            Button(String(localized: "Stapeln"), systemImage: "square.stack.3d.down.right") { Task { await AssetActions.stack(assets, app: app, timeline: timeline) } }
+        } else if style == .viewer, let a = assets.first {
+            Button(String(localized: "Stapel auflösen"), systemImage: "square.stack.3d.up.slash") { Task { await AssetActions.unstack(a, app: app, timeline: timeline) } }
+        }
     }
 }
 

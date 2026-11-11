@@ -577,16 +577,17 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     func createStack(_ ids: [String]) async throws {
         try await raw("stacks", method: "POST", body: json(["assetIds": ids]))
     }
+    func deleteStack(_ id: String) async throws { try await raw("stacks/\(id)", method: "DELETE") }
 
     /// Lädt eine Datei hoch (bearbeitete Fassung) und gibt die neue ID zurück.
-    func upload(_ data: Data, filename: String, created: String) async throws -> String {
+    func upload(_ data: Data, filename: String, created: String, mime: String = "image/jpeg") async throws -> String {
         let boundary = "fotos-\(UUID().uuidString)"
         var body = Data()
         func field(_ name: String, _ value: String) {
             body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".data(using: .utf8)!)
         }
         field("fileCreatedAt", created); field("fileModifiedAt", ISO8601DateFormatter().string(from: Date())); field("filename", filename)
-        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"assetData\"; filename=\"\(safeFilename(filename))\"\r\nContent-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"assetData\"; filename=\"\(safeFilename(filename))\"\r\nContent-Type: \(mime)\r\n\r\n".data(using: .utf8)!)
         body.append(data); body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         var req = try authorized(try url("assets"))
         req.httpMethod = "POST"

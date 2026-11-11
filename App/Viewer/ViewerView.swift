@@ -134,6 +134,17 @@ struct ViewerView: View {
             Menu {
                 AssetMenu(assets: [a], style: .viewer, present: { sheet = $0 }) { removeLocal(a) }
                 if a.isVideo {
+                    Button(String(localized: "Videobild als Foto sichern"), systemImage: "photo.badge.plus") {
+                        let t = video.time
+                        Task { await AssetActions.saveVideoFrame(a, at: t, app: app, timeline: timeline) }
+                    }
+                }
+                if a.isLivePhoto && a.isImage {
+                    Button(String(localized: "Als Video sichern"), systemImage: "video.badge.plus") {
+                        Task { await AssetActions.saveLiveAsVideo(a, app: app, timeline: timeline) }
+                    }
+                }
+                if a.isVideo {
                     // Für Fehlerberichte (GitHub-Issue #1): was die App angefragt hat, Antworten, Codec, Zeiten
                     Button(String(localized: "Video-Diagnose kopieren"), systemImage: "stethoscope") {
                         Task {
