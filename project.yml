@@ -40,7 +40,6 @@ targets:
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, de]
         UILaunchScreen: {}
-        UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIBackgroundModes: [fetch, processing]
         BGTaskSchedulerPermittedIdentifiers: [org.homeroll.app.backup]

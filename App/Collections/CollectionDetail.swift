@@ -360,13 +360,14 @@ extension PersonMenu {
     fileprivate func link(_ c: CNContact) {
         ContactLinks.set(c.identifier, for: person.id); linked = true
         let n = [c.givenName, c.familyName].filter { !$0.isEmpty }.joined(separator: " ")
-        var fields: [String: Any] = [:]
+        var fields: [String: String] = [:]   // nur Text → Sendable (Swift 6: kein Datenrennen beim Weitergeben an den Task)
         if !n.isEmpty { fields["name"] = n; renamed(n) }
         if let b = c.birthday, let y = b.year, let m = b.month, let d = b.day {
             fields["birthDate"] = String(format: "%04d-%02d-%02d", y, m, d)
             birthday = Calendar.current.date(from: DateComponents(year: y, month: m, day: d))
         }
-        if !fields.isEmpty { Task { try? await ImmichClient.shared.updatePerson(person.id, fields) } }
+        let payload = fields
+        if !payload.isEmpty { Task { try? await ImmichClient.shared.updatePerson(person.id, payload) } }
         app.toast(String(localized: "Mit Kontakt verknüpft"))
     }
 }

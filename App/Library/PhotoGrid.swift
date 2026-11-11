@@ -164,7 +164,7 @@ final class AssetCell: UICollectionViewCell {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        contentView.backgroundColor = UIColor(white: 0.12, alpha: 1)
+        contentView.backgroundColor = .systemGray6
         contentView.clipsToBounds = true
         image.clipsToBounds = true
         for b in [heart, shared] as [UIView] + [duration] {
@@ -290,7 +290,7 @@ final class DenseCell: UICollectionViewCell {
     override init(frame: CGRect) {
         super.init(frame: frame)
         image.contentMode = .scaleAspectFill; image.clipsToBounds = true
-        image.backgroundColor = UIColor(white: 0.12, alpha: 1)
+        image.backgroundColor = .systemGray6
         contentView.addSubview(image)
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -384,7 +384,7 @@ struct PhotoGrid: UIViewRepresentable {
             c.configure(cell, c.parent.items[i])
         }
         c.placeholderRegistration = UICollectionView.CellRegistration<UICollectionViewCell, Int> { cell, _, _ in
-            cell.contentView.backgroundColor = UIColor(white: 0.11, alpha: 1)
+            cell.contentView.backgroundColor = .systemGray6
         }
         c.denseRegistration = UICollectionView.CellRegistration<DenseCell, Int> { [weak c] cell, _, i in
             guard let c, i < c.parent.items.count else { return }
@@ -850,7 +850,7 @@ final class PreviewController: UIViewController {
     required init?(coder: NSCoder) { fatalError() }
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor(white: 0.1, alpha: 1)
+        view.backgroundColor = .systemGray6
         image.contentMode = .scaleAspectFill; image.clipsToBounds = true
         image.frame = view.bounds; image.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(image)
