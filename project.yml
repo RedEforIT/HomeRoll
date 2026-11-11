@@ -41,7 +41,7 @@ targets:
         CFBundleLocalizations: [en, de]
         UILaunchScreen: {}
         UIUserInterfaceStyle: Dark
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIBackgroundModes: [fetch, processing]
         BGTaskSchedulerPermittedIdentifiers: [org.homeroll.app.backup]
         NSPhotoLibraryUsageDescription: "Damit deine Fotos auf deinem eigenen Server gesichert werden."

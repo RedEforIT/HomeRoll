@@ -120,10 +120,31 @@ final class BackgroundUploader: NSObject, URLSessionDataDelegate, @unchecked Sen
 
 /// Nimmt iOS’ Weckruf für die Hintergrund-Übertragung entgegen.
 final class HomeRollAppDelegate: NSObject, UIApplicationDelegate {
+    /// Hochformat überall, nur die Einzelansicht darf sich drehen (wie Fotos), siehe `Orientation`
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        MainActor.assumeIsolated { Orientation.allowed }
+    }
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
         guard identifier == BackgroundUploader.sessionID else { completionHandler(); return }
         BackgroundUploader.shared.finishEvents = completionHandler
         BackgroundUploader.shared.reconnect()
+    }
+}
+
+/// Welche Ausrichtungen gerade erlaubt sind: Raster und Sammlungen im Hochformat, die Einzelansicht auch quer.
+@MainActor enum Orientation {
+    static var allowed: UIInterfaceOrientationMask = .portrait
+
+    static func set(_ mask: UIInterfaceOrientationMask) {
+        guard allowed != mask else { return }
+        allowed = mask
+        for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+            scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+            // Zurück ins Hochformat drehen, wenn die Einzelansicht quer geschlossen wird
+            if mask == .portrait, scene.interfaceOrientation != .portrait {
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+            }
+        }
     }
 }
