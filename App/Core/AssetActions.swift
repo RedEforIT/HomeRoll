@@ -12,6 +12,8 @@ enum ActionSheet: Identifiable {
     case shareLink([String])
     /// Link auf ein ganzes Album (Immich: type ALBUM) – Empfänger sehen auch später hinzugefügte Fotos
     case albumLink(String)
+    /// Teilen-Optionen (Ort, Bildunterschriften, Format, Original) und danach teilen
+    case shareOptions([String])
     /// Rückfragen wie bei Apple; `done` läuft nach der Aktion (z. B. Einzelansicht weiterblättern).
     case confirmHide([Asset], done: () -> Void)
     case confirmDeleteForever([Asset], done: () -> Void)
@@ -23,6 +25,7 @@ enum ActionSheet: Identifiable {
         case .slideshow(let a): "show\(a.map(\.id))"
         case .shareLink(let i): "link\(i)"
         case .albumLink(let i): "albumlink\(i)"
+        case .shareOptions(let i): "shareopts\(i)"
         case .confirmHide(let a, _): "hide\(a.map(\.id))"
         case .confirmDeleteForever(let a, _): "forever\(a.map(\.id))"
         }
@@ -561,6 +564,7 @@ extension View {
                 case .location(let a): LocationSheet(assets: a)
                 case .shareLink(let ids): ShareLinkSheet(ids: ids).presentationDetents([.large])
                 case .albumLink(let id): ShareLinkSheet(ids: [], album: id).presentationDetents([.large])
+                case .shareOptions(let ids): ShareOptionsSheet(ids: ids).presentationDetents([.medium, .large])
                 case .slideshow, .confirmHide, .confirmDeleteForever: EmptyView()
                 }
             }

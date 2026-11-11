@@ -14,6 +14,7 @@ struct SelectionBar: View {
             Menu {
                 Button(String(localized: "Datei senden"), systemImage: "doc") { Task { await ShareService.share(ids, app: app) } }
                 Button(String(localized: "Link teilen (Heimnetz/VPN)"), systemImage: "link") { app.sheet = .shareLink(ids) }
+                Button(String(localized: "Teilen-Optionen …"), systemImage: "slider.horizontal.3") { app.sheet = .shareOptions(ids) }
             } label: {
                 Image(systemName: "square.and.arrow.up").frame(width: 58, height: 58).contentShape(.rect)
             } primaryAction: { Task { await ShareService.share(ids, app: app) } }

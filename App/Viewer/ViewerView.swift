@@ -205,6 +205,7 @@ struct ViewerView: View {
                 Menu {
                     Button(String(localized: "Datei senden"), systemImage: "doc") { Task { await ShareService.share([a.id], app: app) } }
                     Button(String(localized: "Link teilen (Heimnetz/VPN)"), systemImage: "link") { sheet = .shareLink([a.id]) }
+                    Button(String(localized: "Teilen-Optionen …"), systemImage: "slider.horizontal.3") { sheet = .shareOptions([a.id]) }
                 } label: {
                     Image(systemName: "square.and.arrow.up").frame(width: 52, height: 52).contentShape(.rect)
                 } primaryAction: { Task { await ShareService.share([a.id], app: app) } }
