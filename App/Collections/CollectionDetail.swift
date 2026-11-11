@@ -518,7 +518,9 @@ struct MapScreen: View {
     @State private var groups: [MapGroup] = []
     @State private var clustering: Task<Void, Never>?
     @State private var region: MKCoordinateRegion?
-    @State private var satellite = false
+    /// Kartenart wie Fotos: Erkunden / Satellit (mit Beschriftung) – und 2D/3D
+    @AppStorage("map.kind") private var kind = 0
+    @AppStorage("map.flat") private var flat = false
     @State private var opened: MapGroup?
 
     struct MapGroup: Identifiable, Hashable {
@@ -538,8 +540,9 @@ struct MapScreen: View {
                 }
             }
         }
-        .mapStyle(satellite ? .hybrid(elevation: .realistic, pointsOfInterest: .excludingAll)
-                            : .standard(elevation: .realistic, pointsOfInterest: .excludingAll))
+        .mapStyle(kind == 1 ? .imagery(elevation: flat ? .flat : .realistic)
+                  : kind == 2 ? .hybrid(elevation: flat ? .flat : .realistic, pointsOfInterest: .excludingAll)
+                  : .standard(elevation: flat ? .flat : .realistic, pointsOfInterest: .excludingAll))
         .mapControls { MapCompass() }
         .onMapCameraChange(frequency: .onEnd) { ctx in recluster(ctx.region) }
         .ignoresSafeArea()
@@ -553,8 +556,18 @@ struct MapScreen: View {
                 Text(String(localized: "Karte")).font(.system(size: 17, weight: .semibold))
                     .padding(.horizontal, 16).frame(height: 40).glassEffect(.regular, in: .capsule)
                 Spacer()
-                Button { satellite.toggle() } label: {
-                    Image(systemName: satellite ? "map" : "globe.europe.africa").font(.system(size: 18)).frame(width: 46, height: 46).contentShape(.rect)
+                Menu {
+                    Picker(String(localized: "Kartenart"), selection: $kind) {
+                        Label(String(localized: "Erkunden"), systemImage: "map").tag(0)
+                        Label(String(localized: "Satellit"), systemImage: "globe.europe.africa").tag(1)
+                        Label(String(localized: "Hybrid"), systemImage: "globe.europe.africa.fill").tag(2)
+                    }
+                    Picker(String(localized: "Ansicht"), selection: $flat) {
+                        Text("3D").tag(false)
+                        Text("2D").tag(true)
+                    }
+                } label: {
+                    Image(systemName: kind == 0 ? "map" : "globe.europe.africa").font(.system(size: 18)).frame(width: 46, height: 46).contentShape(.rect)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
             }

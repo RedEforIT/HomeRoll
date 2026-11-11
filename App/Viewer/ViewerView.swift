@@ -660,6 +660,8 @@ private struct InfoSheet: View {
     var lookUp: (() -> Void)? = nil
     @Environment(AppModel.self) private var app
     @State private var dto: AssetDTO?
+    @State private var nearby: [MapMarkerDTO] = []
+    @State private var nearbyChecked = false
     @State private var albums: [AlbumDTO] = []
     @State private var sharedAlbums: Set<String> = []
     @State private var naming: PersonDTO?
@@ -878,12 +880,29 @@ private struct InfoSheet: View {
             .overlay(alignment: .trailing) { Rectangle().fill(Color(white: 0.3)).frame(width: 1, height: 16) }
     }
 
+    /// Fotos im Umkreis von ~1 km (Immich-Kartenpunkte), ohne dieses Foto
+    private func loadNearby(_ lat: Double, _ lon: Double) async {
+        let all = (try? await ImmichClient.shared.mapMarkers()) ?? []
+        let here = CLLocation(latitude: lat, longitude: lon)
+        nearby = all.filter { $0.id != asset.id && here.distance(from: CLLocation(latitude: $0.lat, longitude: $0.lon)) < 1000 }
+        nearbyChecked = true
+        if nearby.isEmpty { app.toast(String(localized: "Keine anderen Fotos in der Nähe")) }
+    }
+
     @ViewBuilder private var mapCard: some View {
         if let lat = dto?.exifInfo?.latitude, let lon = dto?.exifInfo?.longitude, !(lat == 0 && lon == 0) {
             VStack(spacing: 0) {
                 Map(initialPosition: .region(MKCoordinateRegion(center: .init(latitude: lat, longitude: lon),
                                                                 latitudinalMeters: 1500, longitudinalMeters: 1500)),
                     interactionModes: []) {
+                    // „Fotos in der Nähe zeigen“: andere Fotos im Umkreis von ~1 km als kleine Vorschauen
+                    ForEach(nearby.prefix(25)) { m in
+                        Annotation("", coordinate: .init(latitude: m.lat, longitude: m.lon), anchor: .bottom) {
+                            AssetThumb(id: m.id).frame(width: 30, height: 30)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white, lineWidth: 2))
+                        }
+                    }
                     Annotation("", coordinate: .init(latitude: lat, longitude: lon), anchor: .bottom) {
                         AssetThumb(id: asset.id).frame(width: 48, height: 48)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -898,6 +917,21 @@ private struct InfoSheet: View {
                     Button(String(localized: "Anpassen")) { sheet = .location([asset]) }
                 }
                 .padding(14)
+                if !nearby.isEmpty {
+                    NavigationLink(value: CollectionRoute.assets(title: String(localized: "In der Nähe"), ids: nearby.map(\.id))) {
+                        HStack {
+                            Label(String(localized: "\(nearby.count) Fotos in der Nähe"), systemImage: "mappin.and.ellipse")
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        }
+                        .font(.system(size: 15)).padding(.horizontal, 14).padding(.bottom, 14)
+                    }
+                    .buttonStyle(.plain)
+                } else if !nearbyChecked {
+                    Button(String(localized: "Fotos in der Nähe zeigen")) { Task { await loadNearby(lat, lon) } }
+                        .font(.system(size: 15)).padding(.horizontal, 14).padding(.bottom, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .background(Color(white: 0.14))
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
