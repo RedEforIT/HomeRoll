@@ -62,7 +62,9 @@ enum WidgetFeeder {
 
     /// Vorschau verkleinert (≤ 700 px) als JPEG – Widgets haben wenig Arbeitsspeicher.
     private static func write(_ id: String, to dir: URL) async -> String? {
-        let name = "\(id)-v2.jpg"
+        let version = ImageCache.shared.version(id) ?? "v0"
+        let safeVersion = String(version.prefix(24)).replacingOccurrences(of: "/", with: "_")
+        let name = "\(id)-\(safeVersion).jpg"
         if FileManager.default.fileExists(atPath: dir.appendingPathComponent(name).path) { return name }
         guard let img = await ImageCache.shared.load(id, .preview) else { return nil }
         // in echten Pixeln (Faktor 1) – Widgets lehnen Bilder über ~1,2 Megapixel ab
