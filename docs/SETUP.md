@@ -68,6 +68,24 @@ Backup (optional):
 
 Free Up Space (in Backup) deletes from the iPhone only photos that are verified on the server. iOS asks first and keeps them in Recently Deleted for 30 days.
 
+## 6. More people (family)
+
+Every person gets their own Immich account and only sees their own photos.
+
+1. In the Immich web app: **Administration → Users → Create user**.
+2. Each person installs HomeRoll and logs in with their own e-mail and password (or SSO).
+3. To share: **partner sharing** (Immich web app → Account settings → Partner sharing) or shared albums.
+
+## 7. Keep your photos safe
+
+Your server is now the only place your photos live, so back it up:
+
+- **Second disk:** back up the Immich library (`UPLOAD_LOCATION`) and the database to another disk, e.g. once a day. Immich's guide: <https://docs.immich.app/administration/backup-and-restore>
+- **Outside your home:** a copy somewhere else (cloud storage like Backblaze B2, or a disk at a friend's place) protects against fire and theft.
+- **Watch your disks:** check SMART values now and then, or set up a mail alert.
+
+HomeRoll's backup only copies the iPhone to the server, it doesn't back up the server.
+
 ## Optional server add-ons
 
 Better smart search, receipts/document categories and Clean Up need extra services next to Immich, see [`server/README.md`](../server/README.md). The app works without them.

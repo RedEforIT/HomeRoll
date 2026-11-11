@@ -76,6 +76,35 @@ HomeRoll is an independent iPhone client for a self-hosted Immich server. It aim
 - App version in the profile menu and on the Backup page
 - Per-account separation of caches and memories, performance log
 
+## FAQ
+
+**Why not just use the Immich app?**
+Immich is the server, and its own app is great, with more server and admin features. HomeRoll is a different front end for the same server, for people who want the iPhone Photos experience: the native pinch-to-zoom grid, the viewer with its preview strip, the Photos editor with styles and portrait aperture, memories, search for receipts and screenshots, and Free Up Space with a server check. You can use both side by side.
+
+**Is a phone backup to my own server safe?**
+Only as safe as your server. HomeRoll uploads the untouched originals, but it doesn't make a second copy for you. Keep at least one backup of your Immich library on another disk, and ideally one outside your home (fire, theft). See Immich's [backup and restore guide](https://docs.immich.app/administration/backup-and-restore).
+
+**Is the backup a sync? What happens when I delete a photo on the iPhone?**
+It's a one-way backup. Deleting on the iPhone doesn't touch the server. Free Up Space removes photos from the iPhone only after they are verified on the server.
+
+**Are edits destructive?**
+No. Crop and rotate are done by Immich itself on the same photo. Color edits are saved as a new version stacked on the original, so the original is always there.
+
+**Do portrait photos keep their depth data?**
+Yes. The backup uploads the original file as it is, depth map included, and HomeRoll can change the aperture of a portrait photo later.
+
+**Can my family use it?**
+Yes. Create one Immich account per person (Immich admin → Users). Everyone logs in with their own account, with password or SSO/OIDC, and only sees their own photos. Partner sharing and shared albums work across accounts.
+
+**What does it cost?**
+Nothing for the app. For the server: the hardware once, then electricity. A small mini PC uses about 15–20 W, that's roughly 11–15 kWh a month.
+
+**Android?** No, HomeRoll is iPhone only (and [Mac](https://github.com/silentprovider423/HomeRoll-Desk), [Apple TV](https://github.com/silentprovider423/HomeRoll-TV)).
+
+## How it was built
+
+Apple's Photos frameworks from iOS 26.3 were analysed on my own Mac with [rea](https://github.com/morluto/rea) to get a list of everything the Photos app can do (226 actions; 147 work in HomeRoll). HomeRoll itself is written from scratch in SwiftUI and UIKit against public Apple APIs and Immich's HTTP API. It contains no Apple code or assets. New features follow a clean-room split: one agent only writes plain behavior descriptions ("what happens when you tap X"), and the code is written from those descriptions.
+
 ## Requirements
 
 - An Immich server (tested with **v3.3.5**) reachable from the iPhone – at home, via VPN (e.g. WireGuard) or over https; login with password or SSO/OIDC
