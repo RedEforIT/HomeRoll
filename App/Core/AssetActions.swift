@@ -631,7 +631,11 @@ struct AssetMenu: View {
             }
         }
         if assets.count > 1 {
-            Button(String(localized: "Stapeln"), systemImage: "square.stack.3d.down.right") { Task { await AssetActions.stack(assets, app: app, timeline: timeline) } }
+            Button(String(localized: "Stapeln"), systemImage: "square.stack.3d.down.right") {
+                let chosen = assets
+                onDelete()   // Auswahl beenden – die Nebenbilder verschwinden ohnehin aus dem Raster
+                Task { await AssetActions.stack(chosen, app: app, timeline: timeline) }
+            }
         } else if style == .viewer, let a = assets.first {
             Button(String(localized: "Stapel auflösen"), systemImage: "square.stack.3d.up.slash") { Task { await AssetActions.unstack(a, app: app, timeline: timeline) } }
         }
