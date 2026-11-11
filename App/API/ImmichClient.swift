@@ -305,10 +305,12 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
     func mapMarkers() async throws -> [MapMarkerDTO] { try await request("map/markers") }
     /// Freigabelink mit allen Optionen aus Immichs Dialog (Beschreibung, Passwort, Ablauf, Metadaten, Herunterladen,
     /// Hochladen, eigener Name). Mit Namen lautet die Adresse …/s/<name>, sonst …/share/<Schlüssel>.
-    func createShareLink(_ ids: [String], options o: ShareLinkOptions) async throws -> URL {
+    /// Mit `album` entsteht ein Album-Link (type ALBUM), sonst ein Link auf genau diese Objekte.
+    func createShareLink(_ ids: [String], album: String? = nil, options o: ShareLinkOptions) async throws -> URL {
         struct Link: Decodable { let key: String; let slug: String? }
-        var body: [String: Any] = ["type": "INDIVIDUAL", "assetIds": ids, "allowDownload": o.allowDownload,
-                                   "allowUpload": o.allowUpload, "showMetadata": o.showMetadata]
+        var body: [String: Any] = ["allowDownload": o.allowDownload, "allowUpload": album != nil && o.allowUpload,
+                                   "showMetadata": o.showMetadata]
+        if let album { body["type"] = "ALBUM"; body["albumId"] = album } else { body["type"] = "INDIVIDUAL"; body["assetIds"] = ids }
         let text = o.description.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty { body["description"] = text }
         if !o.password.isEmpty { body["password"] = o.password }
@@ -329,11 +331,15 @@ final class ImmichClient: NSObject, URLSessionDelegate, @unchecked Sendable {
         return base.appendingPathComponent("share").appendingPathComponent(key)
     }
 
-    /// Aktive (nicht abgelaufene) Einzel-Links, die mindestens eines dieser Objekte enthalten.
-    func sharedLinks(containing ids: [String]) async throws -> [SharedLinkDTO] {
+    /// Aktive (nicht abgelaufene) Einzel-Links, die mindestens eines dieser Objekte enthalten – oder mit `album` die Links dieses Albums.
+    func sharedLinks(containing ids: [String], album: String? = nil) async throws -> [SharedLinkDTO] {
         let all: [SharedLinkDTO] = try await request("shared-links")
         let want = Set(ids)
-        return all.filter { $0.type == "INDIVIDUAL" && $0.isActive && ($0.assets ?? []).contains { want.contains($0.id) } }
+        return all.filter {
+            guard $0.isActive else { return false }
+            if let album { return $0.type == "ALBUM" && $0.album?.id == album }
+            return $0.type == "INDIVIDUAL" && ($0.assets ?? []).contains { want.contains($0.id) }
+        }
             .sorted { ($0.expires ?? .distantFuture) < ($1.expires ?? .distantFuture) }
     }
 

@@ -10,6 +10,8 @@ enum ActionSheet: Identifiable {
     case location([Asset])
     case slideshow([Asset])
     case shareLink([String])
+    /// Link auf ein ganzes Album (Immich: type ALBUM) – Empfänger sehen auch später hinzugefügte Fotos
+    case albumLink(String)
     /// Rückfragen wie bei Apple; `done` läuft nach der Aktion (z. B. Einzelansicht weiterblättern).
     case confirmHide([Asset], done: () -> Void)
     case confirmDeleteForever([Asset], done: () -> Void)
@@ -20,6 +22,7 @@ enum ActionSheet: Identifiable {
         case .location(let a): "loc\(a.map(\.id))"
         case .slideshow(let a): "show\(a.map(\.id))"
         case .shareLink(let i): "link\(i)"
+        case .albumLink(let i): "albumlink\(i)"
         case .confirmHide(let a, _): "hide\(a.map(\.id))"
         case .confirmDeleteForever(let a, _): "forever\(a.map(\.id))"
         }
@@ -557,6 +560,7 @@ extension View {
                 case .dateTime(let a): DateTimeSheet(assets: a).presentationDetents([.large])
                 case .location(let a): LocationSheet(assets: a)
                 case .shareLink(let ids): ShareLinkSheet(ids: ids).presentationDetents([.large])
+                case .albumLink(let id): ShareLinkSheet(ids: [], album: id).presentationDetents([.large])
                 case .slideshow, .confirmHide, .confirmDeleteForever: EmptyView()
                 }
             }

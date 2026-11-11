@@ -239,6 +239,7 @@ struct AlbumScreen: View {
         }
         Button(String(localized: "Teilen"), systemImage: "square.and.arrow.up") { Task { await ShareService.share(sorted.map(\.id), app: app) } }
             .disabled(sorted.isEmpty)
+        Button(String(localized: "Album als Link teilen"), systemImage: "link") { app.sheet = .albumLink(ref.id) }
         Button(String(localized: "Fotos hinzufügen"), systemImage: "plus") { picker = true }
         // wie Fotos (REA: PXPhotoKitAssetCollectionPlayMovieActionPerformer): Album im Rückblick-Player
         Button("Als Rückblick abspielen", systemImage: "play.rectangle.on.rectangle") {
@@ -358,6 +359,7 @@ private struct AlbumContextMenu: ViewModifier {
             .contextMenu {
                 Button(String(localized: "Fotos teilen"), systemImage: "square.and.arrow.up") { Task { await AlbumActions.share(album.id, app: app) } }
                     .disabled(album.assetCount == 0)
+                Button(String(localized: "Album als Link teilen"), systemImage: "link") { app.sheet = .albumLink(album.id) }
                 Button(String(localized: "Fotos hinzufügen"), systemImage: "plus") { picker = true }
                 Divider()
                 Button(String(localized: "Titel bearbeiten"), systemImage: "pencil") { newName = album.albumName; renaming = true }

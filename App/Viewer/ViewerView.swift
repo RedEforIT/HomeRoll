@@ -73,7 +73,12 @@ struct ViewerView: View {
             }
         }
         .onChange(of: video.playing) { _, p in if !p { withAnimation(.easeInOut(duration: 0.2)) { chrome = true } } }
-        .onDisappear { video.stop() }
+        .onDisappear { video.stop(); Orientation.set(.portrait) }
+        // Quer drehen nur in der Einzelansicht selbst – Bearbeiten, Info und Teilen bleiben im Hochformat
+        .onAppear { Orientation.set(.allButUpsideDown) }
+        .onChange(of: editing != nil || showInfo || sheet != nil, initial: true) { _, busy in
+            Orientation.set(busy ? .portrait : .allButUpsideDown)
+        }
         // Text/Objekte im Foto erkennen, sobald es gezeigt wird (VisionKit, auf dem iPhone)
         .task(id: "\(selection)\(stripScrubbing)") {
             analysis.lookUp = false
@@ -196,9 +201,13 @@ struct ViewerView: View {
     private func normalBar(_ a: Asset) -> some View {
         GlassEffectContainer {
             HStack(spacing: 12) {
-                Button { Task { await ShareService.share([a.id], app: app) } } label: {
+                // Tippen teilt die Datei wie in Fotos, langes Drücken bietet zusätzlich „Als Link teilen“
+                Menu {
+                    Button(String(localized: "Datei senden"), systemImage: "doc") { Task { await ShareService.share([a.id], app: app) } }
+                    Button(String(localized: "Link teilen (Heimnetz/VPN)"), systemImage: "link") { sheet = .shareLink([a.id]) }
+                } label: {
                     Image(systemName: "square.and.arrow.up").frame(width: 52, height: 52).contentShape(.rect)
-                }
+                } primaryAction: { Task { await ShareService.share([a.id], app: app) } }
                 .glassEffect(.regular.interactive(), in: .circle)
                 Spacer()
                 HStack(spacing: 2) {

@@ -11,9 +11,12 @@ struct SelectionBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button { Task { await ShareService.share(ids, app: app) } } label: {
+            Menu {
+                Button(String(localized: "Datei senden"), systemImage: "doc") { Task { await ShareService.share(ids, app: app) } }
+                Button(String(localized: "Link teilen (Heimnetz/VPN)"), systemImage: "link") { app.sheet = .shareLink(ids) }
+            } label: {
                 Image(systemName: "square.and.arrow.up").frame(width: 58, height: 58).contentShape(.rect)
-            }
+            } primaryAction: { Task { await ShareService.share(ids, app: app) } }
             .glassEffect(.regular.interactive(), in: .circle)
             .disabled(ids.isEmpty)
             Text(SelectionText.make(app.selected, timeline))

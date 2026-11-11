@@ -104,6 +104,7 @@ struct SharedLinkDTO: Decodable, Identifiable, Hashable {
     let allowDownload: Bool?
     let showMetadata: Bool?
     let assets: [Ref]?
+    let album: Ref?
 
     var expires: Date? { expiresAt.flatMap(ShareDates.parse) }
     var isActive: Bool { expires.map { $0 > Date() } ?? true }
@@ -116,6 +117,8 @@ struct ShareLinkFields: View {
     var editing = false
     var hasPassword = false
     var firstHeader: String? = nil
+    /// Album-Link: Empfänger dürfen auch Fotos hinzufügen
+    var album = false
 
     var body: some View {
         Section {
@@ -155,6 +158,7 @@ struct ShareLinkFields: View {
             Toggle(String(localized: "Empfänger dürfen herunterladen"), isOn: $o.allowDownload)
                 .disabled(!o.showMetadata)
             // „Hochladen“ gibt es nur bei Album-Links (wohin sonst?) – Immich zeigt es bei Einzel-Links auch nicht
+            if album { Toggle(String(localized: "Empfänger dürfen Fotos hinzufügen"), isOn: $o.allowUpload) }
         } footer: {
             Text(String(localized: "Herunterladen geht nur zusammen mit Metadaten (Ort, Kamera, Datum) – so verlangt es Immich."))
         }
@@ -201,6 +205,8 @@ private struct SharedLinkRow: View {
 /// kopieren, teilen), darunter ein neuer Link mit Beschreibung, Passwort, Ablauf, Metadaten, Herunterladen, Hochladen, Linkname.
 struct ShareLinkSheet: View {
     let ids: [String]
+    /// gesetzt = Link auf das ganze Album statt auf einzelne Fotos
+    var album: String? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var app
     @State private var o = ShareLinkOptions.restored()
@@ -233,7 +239,8 @@ struct ShareLinkSheet: View {
                         }
                     }
                 }
-                ShareLinkFields(o: $o, firstHeader: String(localized: "Neuer Link"))
+                ShareLinkFields(o: $o, firstHeader: album == nil ? String(localized: "Neuer Link") : String(localized: "Neuer Link für das ganze Album"),
+                                album: album != nil)
                 Section {
                     Button { Task { await create() } } label: {
                         HStack { Spacer(); Text(String(localized: "Link anlegen")).bold(); Spacer() }
@@ -262,7 +269,7 @@ struct ShareLinkSheet: View {
     }
 
     private func reload() async {
-        if let l = try? await ImmichClient.shared.sharedLinks(containing: ids) { links = l }
+        if let l = try? await ImmichClient.shared.sharedLinks(containing: ids, album: album) { links = l }
     }
 
     private func linkURL(_ link: SharedLinkDTO) async -> URL? {
@@ -292,7 +299,7 @@ struct ShareLinkSheet: View {
         working = true
         defer { working = false }
         do {
-            let url = try await ImmichClient.shared.createShareLink(ids, options: o)
+            let url = try await ImmichClient.shared.createShareLink(ids, album: album, options: o)
             o.remember()
             o.description = ""; o.password = ""; o.slug = ""
             UIPasteboard.general.url = url
@@ -335,7 +342,7 @@ struct ShareLinkEditView: View {
 
     var body: some View {
         Form {
-            ShareLinkFields(o: $o, editing: true, hasPassword: link.hasPassword)
+            ShareLinkFields(o: $o, editing: true, hasPassword: link.hasPassword, album: link.type == "ALBUM")
             Section {
                 Button(String(localized: "Diesen Link löschen"), role: .destructive) { confirmDelete = true }
             }
