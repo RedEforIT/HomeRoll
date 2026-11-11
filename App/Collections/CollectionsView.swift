@@ -7,6 +7,8 @@ enum CollectionRoute: Hashable {
     case album(AlbumRef), person(PersonRef)
     case allAlbums, allPeople, allTrips, allMemories, allMediaTypes, allOthers, allPinned
     case albumFolder(String)
+    /// intelligentes Album (ID)
+    case smart(String)
 }
 struct AlbumRef: Hashable { let id: String; let name: String }
 struct PersonRef: Hashable { let id: String; let name: String }
@@ -131,6 +133,7 @@ struct CollectionsView: View {
             await memories.rebuild(timeline: timeline, server: model.memories)
             SpotlightIndex.update(albums: model.albums, people: model.people, memories: memories.items, account: app.userID)
             AlbumFolders.shared.use(app.userID)
+            SmartAlbums.shared.use(app.userID)
         }
         // Spotlight / Deep-Link: Album oder Person direkt öffnen
         .onChange(of: app.pendingRoute) { _, r in

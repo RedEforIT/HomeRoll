@@ -453,6 +453,8 @@ struct AlbumsListScreen: View {
     @State private var newAlbum = false
     @State private var naming: (id: String?, name: String)?
     @State private var folders = AlbumFolders.shared
+    @State private var smart = SmartAlbums.shared
+    @State private var editingSmart: SmartAlbum?
 
     private var folder: AlbumFolders.Folder? { folderID.flatMap { id in folders.folders.first { $0.id == id } } }
     private func visible(_ sort: AlbumSort) -> [AlbumDTO] {
@@ -468,6 +470,7 @@ struct AlbumsListScreen: View {
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 18) {
                 if folderID == nil {
                     ForEach(folders.folders) { f in folderTile(f) }
+                    ForEach(smart.albums) { s in smartTile(s) }
                 }
                 ForEach(visible(sort)) { a in
                     NavigationLink(value: CollectionRoute.album(AlbumRef(id: a.id, name: a.albumName))) {
@@ -488,7 +491,8 @@ struct AlbumsListScreen: View {
         }
         .background(Color.black)
         .navigationTitle(folder?.name ?? String(localized: "Alben"))
-        .onAppear { folders.use(app.userID) }
+        .onAppear { folders.use(app.userID); smart.use(app.userID) }
+        .sheet(item: $editingSmart) { s in SmartAlbumEditor(album: s) { smart.save($0) } }
         .overlay {
             if folderID != nil, visible(sort).isEmpty {
                 ContentUnavailableView("Ordner ist leer", systemImage: "folder",
@@ -512,6 +516,7 @@ struct AlbumsListScreen: View {
                     Button(String(localized: "Neues Album"), systemImage: "plus") { newAlbum = true }
                     if folderID == nil {
                         Button("Neuer Ordner", systemImage: "folder.badge.plus") { naming = (nil, "") }
+                        Button(String(localized: "Neues intelligentes Album"), systemImage: "gearshape") { editingSmart = SmartAlbum() }
                     }
                     Picker(String(localized: "Sortieren"), selection: $sortRaw) {
                         ForEach(AlbumSort.allCases) { Text($0.title).tag($0.rawValue) }
@@ -522,6 +527,24 @@ struct AlbumsListScreen: View {
         }
         .sheet(isPresented: $newAlbum) {
             NewAlbumSheet { created in if let folderID { folders.move(created.id, to: folderID) } }
+        }
+    }
+
+    /// Kachel eines intelligenten Albums (Zahnrad wie in Fotos)
+    private func smartTile(_ s: SmartAlbum) -> some View {
+        NavigationLink(value: CollectionRoute.smart(s.id)) {
+            VStack(alignment: .leading, spacing: 4) {
+                RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color(white: 0.14))
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay { Image(systemName: "gearshape").font(.system(size: 44)).foregroundStyle(.secondary) }
+                Text(s.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white).lineLimit(1)
+                Text(String(localized: "Intelligentes Album")).font(.system(size: 14)).foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(String(localized: "Regeln bearbeiten"), systemImage: "slider.horizontal.3") { editingSmart = s }
+            Button(String(localized: "Intelligentes Album löschen"), systemImage: "trash", role: .destructive) { smart.delete(s.id) }
         }
     }
 

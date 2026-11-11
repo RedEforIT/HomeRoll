@@ -64,6 +64,7 @@ struct CollectionDetail: View {
         case .album(let a): a.name
         case .person(let p): p.name.isEmpty ? String(localized: "Unbenannt") : p.name
         case .assets(let t, _): t
+        case .smart(let id): SmartAlbums.shared.album(id)?.name ?? ""
         case .allTrips: String(localized: "Reisen")
         case .allMemories: String(localized: "Rückblicke")
         default: ""
@@ -82,6 +83,9 @@ struct CollectionDetail: View {
             return ((try? await c.search(filter: ["personIds": ["any": [p.id]]], size: 1000, order: "asc")) ?? []).map(\.asset)
         case .assets(_, let ids):
             let set = Set(ids); return all.filter { set.contains($0.id) }
+        case .smart(let id):
+            guard let a = SmartAlbums.shared.album(id) else { return [] }
+            return ((try? await c.search(filter: a.filter, size: 2000)) ?? []).map(\.asset)
         default: return []
         }
     }
