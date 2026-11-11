@@ -106,7 +106,7 @@ def clean(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
     sw, sh = min(side, W), min(side, H)
     crop = image[sy:sy + sh, sx:sx + sw]; mcrop = mask[sy:sy + sh, sx:sx + sw]
 
-    # Das LaMa-Modell erwartet ein 512×512-Fenster. Die Original-Kropf-Form darf dabei nicht verzerrt werden,
+    # Das LaMa-Modell erwartet ein 512×512-Fenster. Die Form des Ausschnitts darf dabei nicht verzerrt werden,
     # sonst verschiebt sich das Musterverhältnis beim Inpainten und das Ergebnis wird gestreckt/gebogen.
     target = 512
     scale = min(target / max(crop.shape[1], 1), target / max(crop.shape[0], 1))

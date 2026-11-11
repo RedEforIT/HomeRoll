@@ -532,7 +532,7 @@ enum AssetMenuUIKit {
         ])
         var common: [UIMenuElement] = []
         if app.outsideLibrary, !a.isHidden {
-            common.append(UIAction(title: "In Mediathek zeigen", image: img("photo.on.rectangle")) { _ in app.showInLibrary(a.id) })
+            common.append(UIAction(title: String(localized: "In Mediathek zeigen"), image: img("photo.on.rectangle")) { _ in app.showInLibrary(a.id) })
         }
         common += [
             UIAction(title: String(localized: "Kopieren"), image: img("doc.on.doc")) { _ in Task { await AssetActions.copy([a], app: app) } },
