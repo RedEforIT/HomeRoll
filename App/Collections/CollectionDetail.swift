@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import ContactsUI
 
 /// Lädt die Inhalte einer Sammlung und zeigt sie als Raster.
 struct CollectionDetail: View {
@@ -271,6 +272,8 @@ struct PersonMenu: View {
     @State private var birthdayDraft = Date()
     @State private var favorite = false
     @State private var hidden = false
+    @State private var pickingContact = false
+    @State private var linked = false
 
     var body: some View {
         Menu {
@@ -284,6 +287,14 @@ struct PersonMenu: View {
             Button(String(localized: "Weitere Fotos prüfen"), systemImage: "person.crop.circle.badge.questionmark") { reviewing = true }
             Button(birthday == nil ? String(localized: "Geburtstag hinzufügen") : String(localized: "Geburtstag ändern"), systemImage: "gift") {
                 birthdayDraft = birthday ?? Calendar.current.date(byAdding: .year, value: -30, to: Date())!; askBirthday = true
+            }
+            if linked {
+                Button(String(localized: "Kontakt trennen"), systemImage: "person.crop.circle.badge.xmark") {
+                    ContactLinks.set(nil, for: person.id); linked = false
+                    app.toast(String(localized: "Kontakt getrennt"))
+                }
+            } else {
+                Button(String(localized: "Kontaktdaten verknüpfen"), systemImage: "person.crop.circle.badge.plus") { pickingContact = true }
             }
             Divider()
             Button(hidden ? String(localized: "Wieder anzeigen") : String(localized: "Aus „Personen“ ausblenden"), systemImage: hidden ? "eye" : "eye.slash") {
@@ -307,6 +318,13 @@ struct PersonMenu: View {
             }
         }
         .sheet(isPresented: $merging) { MergePeopleSheet(target: person) { dismiss() } }
+        .sheet(isPresented: $pickingContact) {
+            ContactPicker { c in
+                pickingContact = false
+                link(c)
+            }
+            .ignoresSafeArea()
+        }
         .sheet(isPresented: $reviewing) { FaceReviewSheet(person: person) }
         .sheet(isPresented: $askBirthday) {
             NavigationStack {
@@ -328,11 +346,28 @@ struct PersonMenu: View {
             .presentationDetents([.medium])
         }
         .task {
+            linked = ContactLinks.contact(for: person.id) != nil
             if let all = try? await ImmichClient.shared.allPeople(withHidden: true), let me = all.first(where: { $0.id == person.id }) {
                 favorite = me.isFavorite == true; hidden = me.isHidden == true
                 if let b = me.birthDate { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; birthday = f.date(from: String(b.prefix(10))) }
             }
         }
+    }
+}
+
+extension PersonMenu {
+    /// Kontakt übernehmen: Name (Vor- und Nachname) und – falls im Kontakt – Geburtstag auf den Server schreiben
+    fileprivate func link(_ c: CNContact) {
+        ContactLinks.set(c.identifier, for: person.id); linked = true
+        let n = [c.givenName, c.familyName].filter { !$0.isEmpty }.joined(separator: " ")
+        var fields: [String: Any] = [:]
+        if !n.isEmpty { fields["name"] = n; renamed(n) }
+        if let b = c.birthday, let y = b.year, let m = b.month, let d = b.day {
+            fields["birthDate"] = String(format: "%04d-%02d-%02d", y, m, d)
+            birthday = Calendar.current.date(from: DateComponents(year: y, month: m, day: d))
+        }
+        if !fields.isEmpty { Task { try? await ImmichClient.shared.updatePerson(person.id, fields) } }
+        app.toast(String(localized: "Mit Kontakt verknüpft"))
     }
 }
 
