@@ -105,10 +105,29 @@ def clean(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
     sx = int(np.clip(cx - side // 2, 0, max(0, W - side))); sy = int(np.clip(cy - side // 2, 0, max(0, H - side)))
     sw, sh = min(side, W), min(side, H)
     crop = image[sy:sy + sh, sx:sx + sw]; mcrop = mask[sy:sy + sh, sx:sx + sw]
-    rgb = cv2.cvtColor(cv2.resize(crop, (512, 512), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
-    m512 = cv2.resize(mcrop, (512, 512), interpolation=cv2.INTER_NEAREST)
+
+    # Das LaMa-Modell erwartet ein 512×512-Fenster. Die Original-Kropf-Form darf dabei nicht verzerrt werden,
+    # sonst verschiebt sich das Musterverhältnis beim Inpainten und das Ergebnis wird gestreckt/gebogen.
+    target = 512
+    scale = min(target / max(crop.shape[1], 1), target / max(crop.shape[0], 1))
+    nw = max(1, int(round(crop.shape[1] * scale)))
+    nh = max(1, int(round(crop.shape[0] * scale)))
+
+    rgb = cv2.cvtColor(cv2.resize(crop, (nw, nh), interpolation=cv2.INTER_AREA), cv2.COLOR_BGR2RGB)
+    m512 = cv2.resize(mcrop, (nw, nh), interpolation=cv2.INTER_NEAREST)
+
+    pad_top = (target - nh) // 2
+    pad_bottom = target - nh - pad_top
+    pad_left = (target - nw) // 2
+    pad_right = target - nw - pad_left
+
+    rgb = cv2.copyMakeBorder(rgb, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_REFLECT)
+    m512 = cv2.copyMakeBorder(m512, pad_top, pad_bottom, pad_left, pad_right, cv2.BORDER_CONSTANT, value=0)
+
     res = cv2.cvtColor(lama(rgb, m512), cv2.COLOR_RGB2BGR)
+    res = res[pad_top:pad_top + nh, pad_left:pad_left + nw]
     res = cv2.resize(res, (sw, sh), interpolation=cv2.INTER_CUBIC)
+
     # weiche Kante, nur der markierte Bereich wird ersetzt
     soft = cv2.GaussianBlur(mcrop.astype(np.float32) / 255.0, (0, 0), sigmaX=k / 2)[..., None]
     out = image.copy()
